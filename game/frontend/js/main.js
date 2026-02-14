@@ -10,8 +10,7 @@ const SPEED = 5;
 const BUILD_RANGE = 6;
 const MAP_HEIGHT = 64; 
 
-// --- NOWOŚĆ: POZIOM MORZA ---
-// Wszystko poniżej tej wysokości (Y=35), co nie jest ziemią, będzie wodą
+// POZIOM MORZA
 const SEA_LEVEL = 35; 
 
 canvas.width = 960;
@@ -29,7 +28,7 @@ const hotbar = [
     { id: 3, name: "Drewno", color: '#8B4513' },
     { id: 10, name: "Deski", color: '#DEB887' },
     { id: 11, name: "Cegły", color: '#B22222' },
-    { id: 12, name: "Woda", color: '#4169E1' } // Nowy blok w ekwipunku
+    { id: 12, name: "Woda", color: '#4169E1' }
 ];
 
 let selectedSlot = 0;
@@ -42,20 +41,20 @@ let canBuildHere = false;
 
 // GRACZ
 const player = {
-    x: 0,
-    y: -300, 
+    x: 0, 
+    y: 0, // Zostanie nadpisane przez funkcję initPlayerPosition
     width: 20,
     height: 40,
     velX: 0,
     velY: 0,
     grounded: false,
-    inWater: false, // Flaga czy pływamy
+    inWater: false, 
     color: '#ff4444'
 };
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (e.key >= '1' && e.key <= '7') { // Teraz mamy 7 slotów
+    if (e.key >= '1' && e.key <= '7') {
         selectedSlot = parseInt(e.key) - 1;
     }
 });
@@ -70,6 +69,37 @@ function updateCamera() {
     if (targetY > maxCamY) targetY = maxCamY;
     camera.x = targetX;
     camera.y = targetY;
+}
+
+// --- NOWOŚĆ: FUNKCJA USTAWIAJĄCA SPAWN ---
+function initPlayerPosition() {
+    // 1. Upewnij się, że chunk startowy (0) jest wygenerowany
+    if (!chunks[0]) generateChunk(0);
+
+    // 2. Szukamy gruntu w kolumnie x = 0 (środek świata)
+    // Zaczynamy od góry i idziemy w dół
+    let spawnY = 0;
+    
+    // x wewnątrz chunka 0 to po prostu 0
+    const chunkData = chunks[0]; 
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        const tile = chunkData[y][0]; // Sprawdzamy pierwszy blok w chunku
+
+        // Szukamy pierwszego solidnego bloku lub wody
+        // Ignorujemy powietrze (0), drewno (3) i liście (4), żeby nie zrespić się na czubku drzewa
+        if (tile !== 0 && tile !== 3 && tile !== 4) {
+            spawnY = y;
+            break; 
+        }
+    }
+
+    // 3. Ustawiamy gracza 2 bloki nad znalezionym gruntem
+    player.x = 0; // Wyśrodkowany X
+    player.y = (spawnY - 2) * TILE_SIZE; 
+    
+    // Resetujemy kamerę od razu na gracza
+    updateCamera();
 }
 
 // --- OBSŁUGA MYSZY ---
@@ -123,8 +153,6 @@ canvas.addEventListener('mousedown', e => {
 function checkBuildValidity() {
     canBuildHere = false;
     const currentTile = getTile(mouseGridX, mouseGridY);
-    
-    // Możemy budować w powietrzu (0), drewnie(3), liściach(4) i WODZIE(12)
     if (!(currentTile === 0 || currentTile === 3 || currentTile === 4 || currentTile === 12)) return;
 
     const top = getTile(mouseGridX, mouseGridY - 1);
@@ -140,7 +168,6 @@ function checkBuildValidity() {
     const blockBottom = blockTop + TILE_SIZE;
     const padding = 1;
 
-    // Jeśli stawiamy blok solidny (nie wodę), sprawdzamy kolizję
     const blockToPlace = hotbar[selectedSlot].id;
     if (blockToPlace !== 12) { 
         if (player.x + padding < blockRight &&
@@ -219,7 +246,6 @@ function generateChunk(chunkX) {
 
     for (let x = 0; x < CHUNK_SIZE; x++) {
         const worldX = chunkX * CHUNK_SIZE + x;
-        // Zmodyfikowaliśmy generowanie terenu, żeby było więcej zagłębień dla wody
         const baseHeight = 30; 
         const noise = Math.sin(worldX * 0.1) * 8 + Math.sin(worldX * 0.05) * 12;
         const surfaceY = Math.floor(baseHeight + noise + 5);
@@ -230,28 +256,22 @@ function generateChunk(chunkX) {
                 continue;
             }
 
-            // --- GENEROWANIE WODY ---
-            // Jeśli jesteśmy powyżej ziemi, ale poniżej poziomu morza -> WODA
             if (y <= surfaceY && y > SEA_LEVEL) {
                 chunkData[y][x] = 12; // Woda
             }
 
             if (y > surfaceY) {
                 if (y > surfaceY + 4 && isCave(worldX, y)) {
-                    // Jaskinia pod wodą? Musimy uważać, żeby woda nie "wisiała"
-                    // W tej prostej wersji, jaskinie mogą być pod dnem jeziora.
                     chunkData[y][x] = 0; 
                 } else {
                     if (y < surfaceY + 8) chunkData[y][x] = 2; 
                     else chunkData[y][x] = 5; 
                 }
             } else if (y === surfaceY) {
-                // Trawa (pod warunkiem, że nie jest pod wodą)
                 if (y > SEA_LEVEL) {
-                     chunkData[y][x] = 2; // Dno jeziora = Ziemia (nie trawa)
+                     chunkData[y][x] = 2; 
                 } else {
-                     chunkData[y][x] = 1; // Trawa
-                     // Drzewa tylko na lądzie
+                     chunkData[y][x] = 1; 
                      if (x > 1 && x < CHUNK_SIZE - 2 && Math.random() < 0.1) {
                          createTree(chunkData, x, surfaceY);
                      }
@@ -260,7 +280,6 @@ function generateChunk(chunkX) {
         }
     }
 
-    // Surowce
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < CHUNK_SIZE; x++) {
             if (y > 30 && Math.random() < 0.02) spawnVein(chunkData, x, y, 6);
@@ -279,27 +298,21 @@ function isSolid(x, y) {
     const gridY = Math.floor(y / TILE_SIZE);
     if (gridY >= MAP_HEIGHT) return true; 
     const tile = getTile(gridX, gridY);
-    // Woda (12) nie jest solidna!
     if (tile === 0 || tile === 3 || tile === 4 || tile === 12) return false;
     return true; 
 }
 
 function update() {
-    // 1. POPRAWKA DETEKCJI WODY
-    // Sprawdzamy wodę przy stopach gracza (nie na środku),
-    // dzięki temu wyporność działa, dopóki nie wyjdziesz całkowicie z wody.
     const centerX = player.x + player.width / 2;
-    const feetY = player.y + player.height - 2; // Punkt przy stopach
+    const feetY = player.y + player.height - 2; 
     
     const centerGridX = Math.floor(centerX / TILE_SIZE);
     const feetGridY = Math.floor(feetY / TILE_SIZE);
     
-    // Sprawdzamy czy przy stopach jest woda
     player.inWater = (getTile(centerGridX, feetGridY) === 12);
 
-    // --- RUCH POZIOMY ---
     let currentSpeed = SPEED;
-    if (player.inWater) currentSpeed = SPEED * 0.5; // Trochę wolniej w wodzie
+    if (player.inWater) currentSpeed = SPEED * 0.5; 
 
     if (keys['ArrowLeft'] || keys['KeyA']) player.velX = -currentSpeed;
     else if (keys['ArrowRight'] || keys['KeyD']) player.velX = currentSpeed;
@@ -307,7 +320,6 @@ function update() {
 
     player.x += player.velX;
 
-    // Kolizja X (Bez zmian)
     const pointsY = [player.y + 2, player.y + player.height / 2, player.y + player.height - 2];
     for (let py of pointsY) {
         if (player.velX > 0 && isSolid(player.x + player.width, py)) {
@@ -320,24 +332,15 @@ function update() {
         }
     }
 
-    // --- RUCH PIONOWY ---
     if (player.inWater) {
-        // FIZYKA WODY
-        
-        // Pływanie do góry (Wypływanie)
         if (keys['ArrowUp'] || keys['KeyW'] || keys['Space']) {
-            player.velY = -4; // Zwiększyłem siłę, żeby łatwiej wyskoczyć na brzeg
+            player.velY = -4; 
         } else {
-            // Jeśli nic nie wciskasz, powoli opadasz na dno
              player.velY += 0.2;
              if (player.velY > 2) player.velY = 2;
         }
-        
-        // Hamowanie w wodzie (żeby nie latać jak rakieta)
         player.velY *= 0.9; 
-
     } else {
-        // FIZYKA LĄDOWA (Grawitacja)
         if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && player.grounded) {
             player.velY = JUMP_FORCE;
             player.grounded = false;
@@ -348,7 +351,6 @@ function update() {
     player.y += player.velY;
     player.grounded = false;
 
-    // Kolizja Y (Bez zmian)
     const pointsX = [player.x + 2, player.x + player.width - 2];
     for (let px of pointsX) {
         if (player.velY > 0 && isSolid(px, player.y + player.height)) {
@@ -361,8 +363,10 @@ function update() {
         }
     }
     
+    // Reset pozycji - teraz używamy initPlayerPosition() dla bezpieczeństwa
     if (player.y > (MAP_HEIGHT + 10) * TILE_SIZE) { 
-        player.x = 0; player.y = -300; player.velY = 0; 
+        initPlayerPosition();
+        player.velY = 0; 
     }
     
     updateCamera();
@@ -429,9 +433,7 @@ function draw() {
                 
                 else if (tile === 10) ctx.fillStyle = '#DEB887'; 
                 else if (tile === 11) ctx.fillStyle = '#B22222';
-                
-                // --- NOWOŚĆ: WODA ---
-                else if (tile === 12) ctx.fillStyle = '#4169E1'; // RoyalBlue
+                else if (tile === 12) ctx.fillStyle = '#4169E1'; 
 
                 else if (tile >= 6) {
                     ctx.fillStyle = '#808080'; 
@@ -466,4 +468,6 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
+// START GRY
+initPlayerPosition(); // Wywołujemy RAZ na początku
 draw();
