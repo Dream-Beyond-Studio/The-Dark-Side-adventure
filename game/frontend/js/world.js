@@ -1,13 +1,11 @@
-import { TILE_SIZE, CHUNK_SIZE, MAP_HEIGHT, SEA_LEVEL } from './config.js';
+import { CHUNK_SIZE, MAP_HEIGHT, SEA_LEVEL } from './config.js';
 
 export const chunks = {}; 
 
-// --- NOWOŚĆ: Własna funkcja losująca ---
-// Zamiast Math.random(), używamy tego. Dla tego samego X i Y zawsze da ten sam wynik.
 function pseudoRandom(x, y) {
-    let n = x * 331 + y * 439; // Unikalna liczba dla kafelka
+    let n = x * 331 + y * 439; 
     n = Math.sin(n) * 12345.6789;
-    return n - Math.floor(n); // Zwraca ułamek 0.0 - 1.0
+    return n - Math.floor(n);
 }
 
 function isCave(x, y) {
@@ -16,11 +14,8 @@ function isCave(x, y) {
 }
 
 function createTree(chunkData, localX, groundY, worldX) {
-    // Używamy pseudoRandom zamiast Math.random
-    // Dzięki temu drzewo wyrośnie w tym samym miejscu u każdego gracza
     const hRand = pseudoRandom(worldX, groundY); 
     const treeHeight = Math.floor(hRand * 4) + 3;
-
     for (let i = 1; i <= treeHeight; i++) {
         const trunkY = groundY - i;
         if (trunkY >= 0) chunkData[trunkY][localX] = 3; 
@@ -36,14 +31,11 @@ function spawnVein(chunkData, centerX, centerY, oreID, worldX) {
     const positions = [{x:0,y:0}, {x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
     for (let i = 0; i < positions.length; i++) {
         const pos = positions[i];
-        // Używamy pseudoRandom z unikalnym offsetem 'i'
         if (pseudoRandom(worldX + pos.x, centerY + pos.y + i) > 0.3) {
             const targetX = centerX + pos.x;
             const targetY = centerY + pos.y;
             if (targetX >= 0 && targetX < CHUNK_SIZE && targetY >= 0 && targetY < MAP_HEIGHT) {
-                if (chunkData[targetY][targetX] === 5) {
-                    chunkData[targetY][targetX] = oreID;
-                }
+                if (chunkData[targetY][targetX] === 5) chunkData[targetY][targetX] = oreID;
             }
         }
     }
@@ -52,11 +44,9 @@ function spawnVein(chunkData, centerX, centerY, oreID, worldX) {
 export function getTile(gridX, gridY) {
     const chunkX = Math.floor(gridX / CHUNK_SIZE);
     const localX = ((gridX % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
-    
     if (!chunks[chunkX]) generateChunk(chunkX);
     if (gridY >= MAP_HEIGHT) return 99; 
     if (gridY < 0) return 0; 
-    
     return chunks[chunkX][gridY][localX];
 }
 
@@ -64,17 +54,12 @@ export function setTile(gridX, gridY, value) {
     const chunkX = Math.floor(gridX / CHUNK_SIZE);
     const localX = ((gridX % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     if (!chunks[chunkX]) generateChunk(chunkX);
-    
-    if (gridY >= 0 && gridY < MAP_HEIGHT) {
-        chunks[chunkX][gridY][localX] = value;
-    }
+    if (gridY >= 0 && gridY < MAP_HEIGHT) chunks[chunkX][gridY][localX] = value;
 }
 
 export function generateChunk(chunkX) {
     const chunkData = [];
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        chunkData[y] = new Array(CHUNK_SIZE).fill(0);
-    }
+    for (let y = 0; y < MAP_HEIGHT; y++) chunkData[y] = new Array(CHUNK_SIZE).fill(0);
 
     for (let x = 0; x < CHUNK_SIZE; x++) {
         const worldX = chunkX * CHUNK_SIZE + x;
@@ -92,16 +77,12 @@ export function generateChunk(chunkX) {
                  if (y > SEA_LEVEL) chunkData[y][x] = 2; 
                  else {
                      chunkData[y][x] = 1; 
-                     // DRZEWA: Używamy pseudoRandom
-                     if (x > 1 && x < CHUNK_SIZE - 2 && pseudoRandom(worldX, surfaceY) < 0.1) {
-                         createTree(chunkData, x, surfaceY, worldX);
-                     }
+                     if (x > 1 && x < CHUNK_SIZE - 2 && pseudoRandom(worldX, surfaceY) < 0.1) createTree(chunkData, x, surfaceY, worldX);
                  }
             }
         }
     }
-
-    // SUROWCE: Też pseudoRandom
+    // Surowce
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < CHUNK_SIZE; x++) {
             const worldX = chunkX * CHUNK_SIZE + x;

@@ -8,3 +8,5 @@ export const MAP_HEIGHT = 128;
 export const SEA_LEVEL = 60;
 export const SERVER = "https://game.patrykp.com.pl";
 export const SERVER_DEV = "http://localhost:3000";
+
+export const ITEM_LASER = 999;

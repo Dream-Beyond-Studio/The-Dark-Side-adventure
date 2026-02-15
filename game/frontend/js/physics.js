@@ -12,12 +12,9 @@ export function isSolid(x, y) {
 export function updatePlayerPhysics(player, keys) {
     const centerX = Math.floor((player.x + player.width/2) / TILE_SIZE);
     const feetY = Math.floor((player.y + player.height - 2) / TILE_SIZE);
-    
-    // Sprawdzamy wodę przy stopach
     player.inWater = (getTile(centerX, feetY) === 12);
 
     let currentSpeed = player.inWater ? SPEED * 0.5 : SPEED;
-
     if (keys['ArrowLeft'] || keys['KeyA']) player.velX = -currentSpeed;
     else if (keys['ArrowRight'] || keys['KeyD']) player.velX = currentSpeed;
     else player.velX = 0;
@@ -34,13 +31,10 @@ export function updatePlayerPhysics(player, keys) {
         }
     }
 
-    // Ruch pionowy
+    // Ruch Pionowy
     if (player.inWater) {
         if (keys['ArrowUp'] || keys['KeyW'] || keys['Space']) player.velY = -4;
-        else { 
-            player.velY += 0.2; 
-            if (player.velY > 2) player.velY = 2; 
-        }
+        else { player.velY += 0.2; if (player.velY > 2) player.velY = 2; }
         player.velY *= 0.9;
     } else {
         if ((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && player.grounded) {
