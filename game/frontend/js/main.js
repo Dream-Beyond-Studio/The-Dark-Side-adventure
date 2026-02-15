@@ -9,7 +9,7 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth - 20; 
 canvas.height = window.innerHeight - 20;
 
-const socket = io(SERVER_DEV);
+const socket = io(SERVER);
 
 // --- ELEMENTY CZATU ---
 const chatInput = document.getElementById('chat-input');
