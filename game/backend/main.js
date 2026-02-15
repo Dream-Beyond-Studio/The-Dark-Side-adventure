@@ -37,6 +37,7 @@ module.exports = (conn, r) => {
 
     app.use("/css", express.static(path.join(__dirname, "../frontend/css")));
     app.use("/js", express.static(path.join(__dirname, "../frontend/js")));
+    app.use("/assets", express.static(path.join(__dirname, "../assets")));
 
     const listener = server.listen(process.env.PORT || 8080, () => {
         console.log("Panel uruchomiony na porcie " + listener.address().port);
