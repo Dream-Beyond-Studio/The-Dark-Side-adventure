@@ -8,12 +8,45 @@ body, html {
     align-items: center;
     background-color: #121212;
     overflow: hidden;
+    font-family: Arial, sans-serif; /* Dodana czcionka */
 }
 
 canvas {
     background-color: #000;
     border: 3px solid #444;
     image-rendering: pixelated;
-    max-width: 95vw;
-    max-height: 95vh;
+    display: block; /* Ważne dla pozycjonowania */
+}
+
+/* --- NOWOŚĆ: STYL CZATU --- */
+#chat-ui {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    width: 300px;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none; /* Kliknięcia przechodzą przez tło czatu do gry */
+}
+
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    font-size: 14px;
+    text-shadow: 1px 1px 0 #000;
+}
+
+#chat-input {
+    pointer-events: auto; /* Ale w input musimy móc klikać */
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #555;
+    color: white;
+    padding: 5px;
+    border-radius: 4px;
 }

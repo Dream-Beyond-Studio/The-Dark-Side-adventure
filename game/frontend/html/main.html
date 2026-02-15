@@ -7,8 +7,13 @@
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <div id="chat-ui">
+        <div id="chat-messages"></div>
+        <input type="text" id="chat-input" placeholder="Naciśnij Enter aby pisać...">
+    </div>
     
     <script src="/assets/socket.io.min.js"></script>
-    <script src="/js/main.js"></script>
+    <script type="module" src="/js/main.js"></script>
 </body>
 </html>
