@@ -21,7 +21,6 @@ export function updatePlayerPhysics(player, keys) {
 
     player.x += player.velX;
 
-    // Kolizja X
     const pointsY = [player.y + 2, player.y + player.height/2, player.y + player.height - 2];
     for (let py of pointsY) {
         if (player.velX > 0 && isSolid(player.x + player.width, py)) {
@@ -31,7 +30,6 @@ export function updatePlayerPhysics(player, keys) {
         }
     }
 
-    // Ruch Pionowy
     if (player.inWater) {
         if (keys['ArrowUp'] || keys['KeyW'] || keys['Space']) player.velY = -4;
         else { player.velY += 0.2; if (player.velY > 2) player.velY = 2; }
@@ -47,7 +45,6 @@ export function updatePlayerPhysics(player, keys) {
     player.y += player.velY;
     player.grounded = false;
 
-    // Kolizja Y
     const pointsX = [player.x + 2, player.x + player.width - 2];
     for (let px of pointsX) {
         if (player.velY > 0 && isSolid(px, player.y + player.height)) {

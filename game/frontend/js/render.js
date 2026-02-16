@@ -1,9 +1,109 @@
 import { TILE_SIZE } from './config.js';
 import { getTile } from './world.js';
 
-export function drawWorld(ctx, camera, canvasWidth, canvasHeight) {
-    ctx.fillStyle = '#87CEEB';
+const STARS_COUNT = 150;
+let stars = [];
+let starsGenerated = false;
+
+const SKY_PALETTE = {
+    NIGHT:   { r: 10, g: 10, b: 35 },
+    DAWN:    { r: 255, g: 120, b: 80 }, 
+    DAY:     { r: 100, g: 200, b: 255 }, 
+    DUSK:    { r: 180, g: 80, b: 160 } 
+};
+
+function lerpColor(c1, c2, factor) {
+    const r = Math.round(c1.r + (c2.r - c1.r) * factor);
+    const g = Math.round(c1.g + (c2.g - c1.g) * factor);
+    const b = Math.round(c1.b + (c2.b - c1.b) * factor);
+    return `rgb(${r},${g},${b})`;
+}
+
+function generateStars(canvasWidth, canvasHeight) {
+    if (starsGenerated) return;
+    for (let i = 0; i < STARS_COUNT; i++) {
+        stars.push({
+            x: Math.random() * canvasWidth,
+            y: Math.random() * canvasHeight * 0.7,
+            size: Math.floor(Math.random() * 3) + 1,
+            blinkSpeed: Math.random() * 0.1 + 0.02
+        });
+    }
+    starsGenerated = true;
+}
+
+function getSmoothSkyColor(progress) {
+    if (progress < 0.20) return lerpColor(SKY_PALETTE.NIGHT, SKY_PALETTE.DAWN, progress / 0.20);
+    if (progress < 0.30) return lerpColor(SKY_PALETTE.DAWN, SKY_PALETTE.DAY, (progress - 0.20) / 0.10);
+    if (progress < 0.70) return lerpColor(SKY_PALETTE.DAY, SKY_PALETTE.DAY, (progress - 0.30) / 0.40);
+    if (progress < 0.80) return lerpColor(SKY_PALETTE.DAY, SKY_PALETTE.DUSK, (progress - 0.70) / 0.10);
+    return lerpColor(SKY_PALETTE.DUSK, SKY_PALETTE.NIGHT, (progress - 0.80) / 0.20);
+}
+
+function drawStars(ctx, canvasWidth, canvasHeight, progress, timeTick) {
+    generateStars(canvasWidth, canvasHeight);
+    let alpha = 0;
+    if (progress > 0.8) alpha = (progress - 0.8) / 0.2; 
+    else if (progress < 0.2) alpha = 1.0 - (progress / 0.2);
+    else if (progress > 0.95 || progress < 0.05) alpha = 1;
+
+    if (alpha <= 0) return;
+    ctx.fillStyle = "white";
+    stars.forEach(star => {
+        const blink = Math.abs(Math.sin(timeTick * star.blinkSpeed));
+        ctx.globalAlpha = alpha * blink;
+        ctx.fillRect(star.x, star.y, star.size, star.size); 
+    });
+    ctx.globalAlpha = 1.0;
+}
+
+function drawCelestialBodies(ctx, canvasWidth, canvasHeight, progress) {
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight + 50; 
+    const radius = canvasWidth * 0.45; 
+
+    if (progress > 0.15 && progress < 0.85) {
+        const sunRange = (progress - 0.15) / 0.7; 
+        const angle = Math.PI + (sunRange * Math.PI); 
+        const sunX = centerX + Math.cos(angle) * radius;
+        const sunY = centerY + Math.sin(angle) * radius; 
+
+        const glow = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, 80);
+        glow.addColorStop(0, "rgba(255, 255, 0, 0.4)");
+        glow.addColorStop(1, "rgba(255, 255, 0, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(sunX - 80, sunY - 80, 160, 160); 
+        ctx.fillStyle = "#FFD700";
+        ctx.fillRect(sunX - 25, sunY - 25, 50, 50); 
+    }
+
+    let moonProgress = (progress + 0.5) % 1.0;
+    if (moonProgress > 0.15 && moonProgress < 0.85) {
+        const moonRange = (moonProgress - 0.15) / 0.7;
+        const angle = Math.PI + (moonRange * Math.PI);
+        const moonX = centerX + Math.cos(angle) * radius;
+        const moonY = centerY + Math.sin(angle) * radius;
+
+        const glow = ctx.createRadialGradient(moonX, moonY, 20, moonX, moonY, 60);
+        glow.addColorStop(0, "rgba(200, 200, 255, 0.2)");
+        glow.addColorStop(1, "rgba(200, 200, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(moonX - 60, moonY - 60, 120, 120);
+        ctx.fillStyle = "#F4F6F0";
+        ctx.fillRect(moonX - 20, moonY - 20, 40, 40); 
+        ctx.fillStyle = "#D0D0D0";
+        ctx.fillRect(moonX - 5, moonY - 10, 8, 8);
+        ctx.fillRect(moonX + 10, moonY + 5, 6, 6);
+    }
+}
+
+export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDuration) {
+    const progress = time / dayDuration;
+    
+    ctx.fillStyle = getSmoothSkyColor(progress);
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    drawStars(ctx, canvasWidth, canvasHeight, progress, time);
+    drawCelestialBodies(ctx, canvasWidth, canvasHeight, progress);
 
     const startCol = Math.floor(camera.x / TILE_SIZE) - 1;
     const endCol = Math.floor((camera.x + canvasWidth) / TILE_SIZE) + 1;
@@ -39,6 +139,56 @@ export function drawWorld(ctx, camera, canvasWidth, canvasHeight) {
     }
 }
 
+export function drawPlayer(ctx, p, camera) {
+    const sx = Math.floor(p.x - camera.x);
+    const sy = Math.floor(p.y - camera.y);
+    const facingRight = (p.velX >= 0); 
+    const isMoving = Math.abs(p.velX) > 0.1;
+    
+    const walkCycle = Math.sin(p.x * 0.2); 
+    const legOffset = isMoving ? walkCycle * 5 : 0;
+    const armOffset = isMoving ? -walkCycle * 5 : 0; 
+
+    const skinColor = "#f1c27d"; 
+    const shirtColor = p.color;  
+    const pantsColor = "#223344"; 
+    const centerX = sx + p.width / 2;
+
+    ctx.fillStyle = pantsColor; ctx.fillRect(centerX - 8, sy + 28 + legOffset, 6, 12);
+    ctx.fillStyle = skinColor; ctx.fillRect(centerX - 10, sy + 14 + armOffset, 6, 14);
+    ctx.fillStyle = shirtColor; ctx.fillRect(centerX - 6, sy + 14, 12, 16);
+    ctx.fillStyle = skinColor; ctx.fillRect(centerX - 8, sy, 16, 14);
+    ctx.fillStyle = "white"; 
+    const eyeDir = facingRight ? 2 : -2;
+    ctx.fillRect(centerX - 2 + eyeDir, sy + 4, 4, 4);
+    ctx.fillStyle = "black"; 
+    ctx.fillRect(centerX + eyeDir + (facingRight ? 2 : 0), sy + 6, 2, 2);
+    ctx.fillStyle = pantsColor; ctx.fillRect(centerX + 2, sy + 28 - legOffset, 6, 12);
+    ctx.fillStyle = skinColor; ctx.fillRect(centerX + 4, sy + 14 - armOffset, 6, 14);
+
+    // NICK NAD GŁOWĄ
+    ctx.fillStyle = "white";
+    ctx.font = "bold 12px Arial";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 2;
+    ctx.fillText(p.nick || "Gracz", centerX, sy - 8);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "start"; 
+}
+
+export function drawNightOverlay(ctx, canvasWidth, canvasHeight, time, dayDuration) {
+    const progress = time / dayDuration;
+    let darkness = (Math.cos(progress * Math.PI * 2) + 1) / 2;
+    darkness = Math.pow(darkness, 4);
+    const opacity = darkness * 0.75;
+
+    if (opacity > 0.01) {
+        ctx.fillStyle = `rgba(0, 5, 20, ${opacity})`;
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+}
+
 export function drawUI(ctx, canvasWidth, hotbar, selectedSlot) {
     const slotSize = 40;
     const padding = 10;
@@ -47,37 +197,27 @@ export function drawUI(ctx, canvasWidth, hotbar, selectedSlot) {
 
     for (let i = 0; i < hotbar.length; i++) {
         const x = startX + i * (slotSize + padding);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        if (i === selectedSlot) ctx.fillStyle = "rgba(255, 255, 0, 0.5)"; 
+        ctx.fillStyle = (i === selectedSlot) ? "rgba(255, 255, 0, 0.5)" : "rgba(0, 0, 0, 0.5)"; 
         ctx.fillRect(x, startY, slotSize, slotSize);
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "white"; ctx.lineWidth = 2;
         ctx.strokeRect(x, startY, slotSize, slotSize);
 
         const item = hotbar[i];
         ctx.fillStyle = item.color;
         const itemSize = 20;
         ctx.fillRect(x + (slotSize - itemSize)/2, startY + (slotSize - itemSize)/2, itemSize, itemSize);
-
-        ctx.fillStyle = "white";
-        ctx.font = "10px Arial";
+        ctx.fillStyle = "white"; ctx.font = "10px Arial";
         ctx.fillText(i + 1, x + 2, startY + 10);
     }
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.textAlign = "center";
+    ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.textAlign = "center";
     ctx.fillText(hotbar[selectedSlot].name, canvasWidth / 2, startY + slotSize + 25);
     ctx.textAlign = "start"; 
 }
 
 export function drawMobs(ctx, mobs, camera) {
     const palette = {
-        white: '#F0F0F0',
-        black: '#1a1a1a',
-        hoof: '#0d0d0d',
-        nose: '#ff99cc',
-        udder: '#ffb3d9',
-        horns: '#8c8c8c'
+        white: '#F0F0F0', black: '#1a1a1a', hoof: '#0d0d0d',
+        nose: '#ff99cc', udder: '#ffb3d9', horns: '#8c8c8c'
     };
 
     for (let id in mobs) {
@@ -86,60 +226,26 @@ export function drawMobs(ctx, mobs, camera) {
         const sy = Math.floor(m.y - camera.y);
 
         if (m.type === 'cow') {
-            const lift = 4;
-            const pad = 2;
-            const dx = sx + pad; 
-            const dy = sy - lift; 
-            const dw = m.width - (pad * 2); 
-            const legH = 10;
+            const bodyW = m.width - 10;
             const bodyH = 18;
-            const headSize = 14;
+            const bodyX = m.facingRight ? sx : sx + 10;
+            const headX = m.facingRight ? sx + bodyW - 4 : sx;
 
-            let bodyX, bodyW;
-            if (m.facingRight) {
-                bodyX = dx;
-                bodyW = dw - (headSize - 4);
-            } else {
-                bodyX = dx + (headSize - 4);
-                bodyW = dw - (headSize - 4);
-            }
-            const bodyY = dy + m.height - legH - bodyH + 4;
-            const legY = dy + m.height - legH;
-
-            const drawLeg = (lx, ly) => {
-                ctx.fillStyle = palette.black; ctx.fillRect(lx, ly, 4, legH - 3);
-                ctx.fillStyle = palette.hoof;  ctx.fillRect(lx, ly + legH - 3, 4, 3);
-            };
-
-            drawLeg(bodyX + 4, legY);
-            drawLeg(bodyX + bodyW - 8, legY);
-            drawLeg(bodyX + 6, legY + 1);
-            drawLeg(bodyX + bodyW - 10, legY + 1);
-
-            ctx.fillStyle = palette.white;
-            ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
             ctx.fillStyle = palette.black;
-            ctx.fillRect(bodyX + 4, bodyY + 4, 6, 10); 
-            ctx.fillRect(bodyX + bodyW - 10, bodyY + 3, 5, 5); 
-
-            ctx.fillStyle = palette.udder;
-            const udderX = m.facingRight ? bodyX + 5 : bodyX + bodyW - 11;
-            ctx.fillRect(udderX, bodyY + bodyH - 2, 6, 3);
-
-            let headX = m.facingRight ? (dx + dw - headSize) : dx;
-            const headY = bodyY - 2; 
-
+            ctx.fillRect(bodyX + 4, sy + m.height - 10, 4, 10);
+            ctx.fillRect(bodyX + bodyW - 8, sy + m.height - 10, 4, 10);
             ctx.fillStyle = palette.white;
-            ctx.fillRect(headX, headY, headSize, headSize);
+            ctx.fillRect(bodyX, sy + 6, bodyW, bodyH);
+            ctx.fillStyle = palette.black;
+            ctx.fillRect(bodyX + 6, sy + 8, 6, 8);
+            ctx.fillStyle = palette.white;
+            ctx.fillRect(headX, sy + 2, 14, 14);
             ctx.fillStyle = palette.horns;
-            ctx.fillRect(headX + 2, headY - 3, 3, 3);
-            ctx.fillRect(headX + headSize - 5, headY - 3, 3, 3);
-
-            const faceDir = m.facingRight ? 1 : -1;
-            const eyeX = headX + (headSize/2) + (3 * faceDir) - 1;
-            const noseX = headX + (headSize/2) + (4 * faceDir) - 2;
-            ctx.fillStyle = palette.black; ctx.fillRect(eyeX, headY + 5, 2, 2);
-            ctx.fillStyle = palette.nose;  ctx.fillRect(noseX, headY + 9, 4, 3);
+            ctx.fillRect(headX + 3, sy - 1, 3, 3);
+            ctx.fillStyle = palette.black;
+            ctx.fillRect(headX + (m.facingRight ? 8 : 4), sy + 5, 2, 2);
+            ctx.fillStyle = palette.nose;
+            ctx.fillRect(headX + (m.facingRight ? 8 : 2), sy + 10, 4, 3);
         }
     }
 }
@@ -156,9 +262,6 @@ export function drawLasers(ctx, lasers, camera) {
         ctx.lineTo(sx2, sy2);
         ctx.strokeStyle = `rgba(255, 0, 0, ${l.life / 10})`;
         ctx.lineWidth = 4;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = "red";
         ctx.stroke();
-        ctx.shadowBlur = 0;
     }
 }

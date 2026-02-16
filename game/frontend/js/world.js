@@ -82,7 +82,6 @@ export function generateChunk(chunkX) {
             }
         }
     }
-    // Surowce
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < CHUNK_SIZE; x++) {
             const worldX = chunkX * CHUNK_SIZE + x;

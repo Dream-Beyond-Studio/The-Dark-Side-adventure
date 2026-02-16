@@ -35,6 +35,10 @@ module.exports = (conn, r) => {
         res.render("html/main.html", {});
     });
 
+    app.get("/docs", (req, res) => {
+        res.render("html/docs.html", {});
+    });
+
     app.use("/css", express.static(path.join(__dirname, "../frontend/css")));
     app.use("/js", express.static(path.join(__dirname, "../frontend/js")));
     app.use("/assets", express.static(path.join(__dirname, "../assets")));

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Dokumentacja - The Dark Side</title>
+    <link rel="stylesheet" href="/css/docs.css">
+</head>
+<body>
+
+<aside>
+    <h1>The Dark Side</h1>
+    <h2>Adventure</h2>
+    <div style="font-size: 0.8rem; margin-bottom: 20px; color: #666;">Wersja: 1.0.0</div>
+
+    <nav>
+        <div class="nav-section">Pliki Serwera</div>
+        <ul>
+            <li><a href="#server-core">server.js (Logika)</a></li>
+            <li><a href="#server-io">server.js (Socket.io)</a></li>
+        </ul>
+
+        <div class="nav-section">Pliki Klienta</div>
+        <ul>
+            <li><a href="#main">main.js (Główny)</a></li>
+            <li><a href="#render">render.js (Grafika)</a></li>
+            <li><a href="#physics">physics.js (Fizyka)</a></li>
+            <li><a href="#world">world.js (Mapa)</a></li>
+        </ul>
+    </nav>
+</aside>
+
+<main>
+    <section id="intro">
+        <h1 class="section-title">Wprowadzenie</h1>
+        <p>Poniżej znajduje się szczegółowy opis wszystkich funkcji użytych w projekcie. Dokumentacja jest podzielona na pliki źródłowe.</p>
+    </section>
+
+    <section id="server-core">
+        <h1 class="section-title">Backend: server.js (Core)</h1>
+        
+        <div class="card">
+            <h3><span class="tag srv">Function</span> log(category, message)</h3>
+            <p>Odpowiada za logowanie zdarzeń w konsoli serwera oraz zapisywanie ich do pliku tekstowego.</p>
+            <table class="param-table">
+                <tr><th>Parametr</th><th>Typ</th><th>Opis</th></tr>
+                <tr><td>category</td><td><span class="type">String</span></td><td>Kategoria logu (np. 'CHAT', 'BUILD', 'KILL').</td></tr>
+                <tr><td>message</td><td><span class="type">String</span></td><td>Treść wiadomości.</td></tr>
+            </table>
+            <div class="return-val">Zapisuje linię do pliku <code>server_logs.txt</code> z datą i godziną.</div>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag srv">Function</span> getTerrainHeight(worldX)</h3>
+            <p>Proceduralne generowanie terenu. Używa dwóch fal sinusowych (Octaves) do stworzenia naturalnie wyglądających pagórków.</p>
+            <code>Math.sin(x * 0.1) * 8 + Math.sin(x * 0.05) * 12</code>
+            <div class="return-val">Zwraca: <span class="type">Number</span> (Wysokość terenu w blokach)</div>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag srv">Function</span> spawnCowNearPlayer()</h3>
+            <p>Wybiera losowego gracza i tworzy krowę w jego pobliżu (zakres +/- 800px).</p>
+            <p>Sprawdza wysokość terenu w wylosowanym miejscu, aby krowa nie zrespiła się pod ziemią ani w powietrzu.</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag srv">Function</span> handleCommand(socket, commandString)</h3>
+            <p>Parser komend administratora i gracza.</p>
+            <table class="param-table">
+                <tr><th>Komenda</th><th>Działanie</th></tr>
+                <tr><td>/nick</td><td>Aktualizuje nick w obiekcie gracza i wysyła event <code>playerNickUpdate</code>.</td></tr>
+                <tr><td>/tp</td><td>Zmienia koordynaty X/Y gracza i wysyła event <code>teleport</code>.</td></tr>
+                <tr><td>/say</td><td>Wysyła wiadomość czatu z ID 'SERVER' (kolor czerwony).</td></tr>
+            </table>
+        </div>
+    </section>
+
+    <section id="main">
+        <h1 class="section-title">Frontend: main.js</h1>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> castRay(x1, y1, x2, y2)</h3>
+            <p>Implementacja algorytmu Raycasting (rzucanie promienia). Służy do sprawdzania, czy laser w coś trafił.</p>
+            <p>Algorytm porusza się od punktu (x1,y1) do (x2,y2) w krokach co 4 piksele. W każdym kroku sprawdza ID bloku w <code>world.js</code>.</p>
+            <table class="param-table">
+                <tr><th>Wyjątki</th><th>Opis</th></tr>
+                <tr><td>0, 12, 3, 4, 1</td><td>Promień PRZENIKA przez Powietrze, Wodę, Tło i Trawę.</td></tr>
+            </table>
+            <div class="return-val">Zwraca: <span class="type">{ x, y, hit: boolean }</span> - Punkt trafienia.</div>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> updateMouseWorldPosition()</h3>
+            <p>Przelicza pozycję kursora myszy na ekranie (Screen Space) na pozycję w świecie gry (World Space) uwzględniając przesunięcie kamery.</p>
+            <p>Zawiera logikę <strong>blokady budowania w powietrzu</strong>: sprawdza czy sąsiednie kafelki (góra, dół, lewo, prawo) są puste.</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> initPlayerPosition()</h3>
+            <p>Skanuje pionową linię mapy na x=0 w poszukiwaniu pierwszego stałego bloku od góry, aby bezpiecznie ustawić gracza na ziemi po dołączeniu lub respawnie.</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> loop()</h3>
+            <p>Główna pętla renderowania klienta (RequestAnimationFrame). Wywołuje kolejno:</p>
+            <ol>
+                <li><code>updatePlayerPhysics</code> (Fizyka)</li>
+                <li>Aktualizację Kamery (Centrowanie na graczu)</li>
+                <li>Wysłanie pozycji do serwera (Socket emit)</li>
+                <li><code>drawWorld</code>, <code>drawMobs</code>, <code>drawPlayer</code> (Renderowanie)</li>
+            </ol>
+        </div>
+    </section>
+
+    <section id="render">
+        <h1 class="section-title">Grafika: render.js</h1>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> lerpColor(c1, c2, factor)</h3>
+            <p>Interpolacja liniowa między dwoma kolorami RGB.</p>
+            <p>Używana do płynnego przejścia koloru nieba (np. od Nocy do Świtu).</p>
+            <div class="return-val">Zwraca: <span class="type">String</span> (np. "rgb(100,200,255)")</div>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> getSmoothSkyColor(progress)</h3>
+            <p>Oblicza kolor tła na podstawie postępu dnia (0.0 - 1.0).</p>
+            <ul>
+                <li>0.00 - 0.20: Noc -> Świt</li>
+                <li>0.20 - 0.70: Dzień</li>
+                <li>0.70 - 0.80: Zachód słońca</li>
+                <li>0.80 - 1.00: Noc</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> drawCelestialBodies(ctx, w, h, progress)</h3>
+            <p>Rysuje słońce i księżyc poruszające się po łuku (sinus/cosinus).</p>
+            <p>Obiekty mają dodany efekt poświaty (Gradient Radialny).</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> drawWorld(ctx, camera, w, h, time, dayDuration)</h3>
+            <p>Główny renderer świata. Optymalizacja: Rysuje tylko te kafelki, które mieszczą się w widoku kamery (View Frustum Culling).</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag cli">Function</span> drawPlayer(ctx, player, camera)</h3>
+            <p>Rysuje postać z prymitywów (prostokąty). Zawiera logikę animacji kończyn:</p>
+            <code>offset = Math.sin(player.x * 0.2)</code>
+            <p>Sprawia to, że nogi i ręce machają tylko wtedy, gdy zmienia się pozycja X gracza.</p>
+        </div>
+    </section>
+
+    <section id="physics">
+        <h1 class="section-title">Fizyka: physics.js</h1>
+
+        <div class="card">
+            <h3><span class="tag sha">Function</span> updatePlayerPhysics(player, keys)</h3>
+            <p>Serce ruchu postaci. Obsługuje:</p>
+            <table class="param-table">
+                <tr><th>Mechanika</th><th>Opis</th></tr>
+                <tr><td>Grawitacja</td><td>Stałe przyspieszenie w dół (velY += GRAVITY).</td></tr>
+                <tr><td>Woda</td><td>Jeśli w bloku 12: grawitacja jest mniejsza, ruch wolniejszy, skok wyższy (wypływanie).</td></tr>
+                <tr><td>Kolizje X</td><td>Sprawdza blok po lewej/prawej stronie. Zeruje velX przy zderzeniu.</td></tr>
+                <tr><td>Kolizje Y</td><td>Sprawdza sufit i podłogę. Ustawia <code>grounded = true</code> przy lądowaniu.</td></tr>
+            </table>
+        </div>
+    </section>
+
+    <section id="world">
+        <h1 class="section-title">Świat: world.js</h1>
+
+        <div class="card">
+            <h3><span class="tag sha">Function</span> getTile(x, y) / setTile(x, y, type)</h3>
+            <p>Zarządza globalną mapą podzieloną na Chunki.</p>
+            <p>Jeśli zapytasz o kafelek w chunku, który nie istnieje, funkcja automatycznie wywoła <code>generateChunk</code>.</p>
+        </div>
+
+        <div class="card">
+            <h3><span class="tag sha">Function</span> generateChunk(chunkX)</h3>
+            <p>Generuje pionowy wycinek świata o szerokości 16 bloków (CHUNK_SIZE).</p>
+            <p>Algorytm:</p>
+            <ol>
+                <li>Oblicz wysokość terenu dla każdego X.</li>
+                <li>Wypełnij od dołu do wysokości terenu Kamieniem i Ziemią.</li>
+                <li>Wypełnij resztę powietrzem.</li>
+                <li>Dodaj wodę poniżej poziomu morza (SEA_LEVEL).</li>
+                <li>Losowo generuj drzewa (Bloki 3 i 4) na trawie.</li>
+            </ol>
+        </div>
+    </section>
+
+</main>
+
+</body>
+</html>
