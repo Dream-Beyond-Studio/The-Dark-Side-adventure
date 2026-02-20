@@ -16,7 +16,7 @@ window.addEventListener('resize', resizeCanvas);
 
 const myNick = prompt("Podaj swój nick:") || "Gracz";
 
-const socket = io(SERVER);
+const socket = io(SERVER_DEV);
 
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
