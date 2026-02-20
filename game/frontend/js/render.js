@@ -142,7 +142,8 @@ export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDurat
 export function drawPlayer(ctx, p, camera) {
     const sx = Math.floor(p.x - camera.x);
     const sy = Math.floor(p.y - camera.y);
-    const facingRight = (p.velX >= 0); 
+    
+    const facingRight = (p.velX > 0.1) ? true : (p.velX < -0.1 ? false : (p.facingRight ?? true));
     const isMoving = Math.abs(p.velX) > 0.1;
     
     const walkCycle = Math.sin(p.x * 0.2); 
@@ -154,19 +155,28 @@ export function drawPlayer(ctx, p, camera) {
     const pantsColor = "#223344"; 
     const centerX = sx + p.width / 2;
 
-    ctx.fillStyle = pantsColor; ctx.fillRect(centerX - 8, sy + 28 + legOffset, 6, 12);
-    ctx.fillStyle = skinColor; ctx.fillRect(centerX - 10, sy + 14 + armOffset, 6, 14);
-    ctx.fillStyle = shirtColor; ctx.fillRect(centerX - 6, sy + 14, 12, 16);
-    ctx.fillStyle = skinColor; ctx.fillRect(centerX - 8, sy, 16, 14);
-    ctx.fillStyle = "white"; 
-    const eyeDir = facingRight ? 2 : -2;
-    ctx.fillRect(centerX - 2 + eyeDir, sy + 4, 4, 4);
-    ctx.fillStyle = "black"; 
-    ctx.fillRect(centerX + eyeDir + (facingRight ? 2 : 0), sy + 6, 2, 2);
-    ctx.fillStyle = pantsColor; ctx.fillRect(centerX + 2, sy + 28 - legOffset, 6, 12);
-    ctx.fillStyle = skinColor; ctx.fillRect(centerX + 4, sy + 14 - armOffset, 6, 14);
+    ctx.fillStyle = pantsColor; 
+    ctx.fillRect(centerX - 8, sy + 28 + legOffset, 6, 12);
+    ctx.fillRect(centerX + 2, sy + 28 - legOffset, 6, 12);
 
-    // NICK NAD GŁOWĄ
+    ctx.fillStyle = skinColor; 
+    ctx.fillRect(centerX - 10, sy + 14 + armOffset, 6, 14);
+    ctx.fillRect(centerX + 4, sy + 14 - armOffset, 6, 14);
+
+    ctx.fillStyle = shirtColor; 
+    ctx.fillRect(centerX - 6, sy + 14, 12, 16);
+    
+    ctx.fillStyle = skinColor; 
+    ctx.fillRect(centerX - 8, sy, 16, 14);
+
+    ctx.fillStyle = "white"; 
+    const eyeX = facingRight ? centerX + 1 : centerX - 5;
+    ctx.fillRect(eyeX, sy + 4, 4, 4);
+    
+    ctx.fillStyle = "black"; 
+    const pupilX = facingRight ? eyeX + 2 : eyeX;
+    ctx.fillRect(pupilX, sy + 5, 2, 2);
+
     ctx.fillStyle = "white";
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "center";

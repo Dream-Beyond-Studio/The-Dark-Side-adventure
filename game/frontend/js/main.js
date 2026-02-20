@@ -1,4 +1,4 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV } from './config.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV, SERVER } from './config.js'; 
 import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk } from './world.js';
 
@@ -9,7 +9,7 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 const myNick = prompt("Podaj swój nick:") || "Gracz";
-const socket = io(SERVER_DEV);
+const socket = io(SERVER);
 
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
@@ -19,7 +19,7 @@ const camera = { x: 0, y: 0 };
 const keys = { left: false, right: false, jump: false };
 let players = {};
 let mobs = {}; 
-let lasers = []; // Tablica przechowująca strzały do narysowania
+let lasers = [];
 let gameTime = 0; 
 let dayDuration = 3600; 
 
@@ -56,7 +56,6 @@ socket.on('gameState', (data) => {
 
 socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type));
 
-// ODBIERANIE STRZAŁÓW OD INNYCH GRACZY
 socket.on('playerShoot', (data) => {
     lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10 });
 });
@@ -114,16 +113,13 @@ canvas.addEventListener('mousedown', e => {
 
     const targetItem = hotbar[selectedSlot].id;
 
-    // --- DZIDA LASEROWA ---
     if (targetItem === ITEM_LASER) {
-        if (e.button === 0) { // Strzał tylko Lewym Przyciskiem Myszy
+        if (e.button === 0) {
             const targetX = screenMouseX + camera.x;
             const targetY = screenMouseY + camera.y;
             
-            // Wysłanie strzału do serwera (by zabić krowy i pokazać innym)
             socket.emit('shoot', { x: targetX, y: targetY });
             
-            // Narysowanie lasera u siebie natychmiast
             lasers.push({
                 x1: myPlayer.x + myPlayer.width / 2,
                 y1: myPlayer.y + myPlayer.height / 2,
@@ -132,10 +128,9 @@ canvas.addEventListener('mousedown', e => {
                 life: 10
             });
         }
-        return; // Blokujemy budowanie/kopanie gdy mamy wybraną broń
+        return;
     }
 
-    // --- BUDOWANIE / KOPANIE ---
     const dist = Math.sqrt(((mouseGridX*TILE_SIZE+16)-(myPlayer.x+10))**2 + ((mouseGridY*TILE_SIZE+16)-(myPlayer.y+20))**2);
     if (dist > BUILD_RANGE * TILE_SIZE) return;
 
@@ -190,7 +185,6 @@ function loop() {
 
     drawNightOverlay(ctx, canvas.width, canvas.height, gameTime, dayDuration);
 
-    // Rysowanie i stopniowe zanikanie laserów
     drawLasers(ctx, lasers, camera);
     for (let i = lasers.length - 1; i >= 0; i--) { 
         if (--lasers[i].life <= 0) lasers.splice(i, 1); 
