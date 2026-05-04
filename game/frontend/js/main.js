@@ -1,5 +1,5 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV, SERVER } from './config.js'; 
-import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer } from './render.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER, SERVER_DEV } from './config.js'; 
+import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk } from './world.js';
 
 const canvas = document.getElementById('gameCanvas');
@@ -17,11 +17,16 @@ let isChatting = false;
 
 const camera = { x: 0, y: 0 };
 const keys = { left: false, right: false, jump: false };
-let players = {};
-let mobs = {}; 
+let localPlayers = {};
+let localMobs = {};
+let targetPlayers = {};
+let targetMobs = {};
+
 let lasers = [];
+let damageTexts = [];
 let gameTime = 0; 
 let dayDuration = 3600; 
+let lastKeysJSON = ""; 
 
 const hotbar = [
     { id: 2, name: "Ziemia", color: '#5C4033' },
@@ -49,8 +54,8 @@ socket.on('initWorld', (data) => {
 socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data));
 
 socket.on('gameState', (data) => {
-    players = data.players;
-    mobs = data.mobs;
+    targetPlayers = data.players;
+    targetMobs = data.mobs;
     gameTime = data.time;
 });
 
@@ -58,6 +63,10 @@ socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type));
 
 socket.on('playerShoot', (data) => {
     lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10 });
+});
+
+socket.on('damageText', (data) => {
+    damageTexts.push({ x: data.x, y: data.y, dmg: data.dmg, life: 60 });
 });
 
 socket.on('chatMessage', (msgData) => {
@@ -108,8 +117,20 @@ canvas.addEventListener('mousemove', e => { screenMouseX = e.clientX; screenMous
 canvas.addEventListener('mousedown', e => {
     if (isChatting) return;
 
-    const myPlayer = players[socket.id];
+    const myPlayer = localPlayers[socket.id];
     if (!myPlayer) return;
+
+    if (myPlayer.isDead) {
+        const btnWidth = 200;
+        const btnHeight = 50;
+        const btnX = canvas.width / 2 - btnWidth / 2;
+        const btnY = canvas.height / 2 + 20;
+
+        if (screenMouseX >= btnX && screenMouseX <= btnX + btnWidth && screenMouseY >= btnY && screenMouseY <= btnY + btnHeight) {
+            socket.emit('respawn');
+        }
+        return;
+    }
 
     const targetItem = hotbar[selectedSlot].id;
 
@@ -165,23 +186,74 @@ function updateMouseWorldPosition() {
 }
 
 function loop() {
-    socket.emit('input', keys);
+    const currentKeysJSON = JSON.stringify(keys);
+    if (currentKeysJSON !== lastKeysJSON) {
+        socket.emit('input', keys);
+        lastKeysJSON = currentKeysJSON;
+    }
 
-    const myPlayer = players[socket.id];
+    for (let id in targetPlayers) {
+        let tp = targetPlayers[id];
+        if (!localPlayers[id]) {
+            localPlayers[id] = { ...tp };
+        } else {
+            localPlayers[id].x += (tp.x - localPlayers[id].x) * 0.3;
+            localPlayers[id].y += (tp.y - localPlayers[id].y) * 0.3;
+            localPlayers[id].velX = tp.velX; 
+            localPlayers[id].facingRight = tp.facingRight;
+            localPlayers[id].nick = tp.nick;
+            localPlayers[id].color = tp.color;
+            localPlayers[id].width = tp.width;
+            localPlayers[id].height = tp.height;
+            localPlayers[id].hp = tp.hp;
+            localPlayers[id].maxHp = tp.maxHp;
+            localPlayers[id].isDead = tp.isDead;
+        }
+    }
+    for (let id in localPlayers) if (!targetPlayers[id]) delete localPlayers[id];
+
+    for (let id in targetMobs) {
+        let tm = targetMobs[id];
+        if (!localMobs[id]) {
+            localMobs[id] = { ...tm };
+        } else {
+            localMobs[id].x += (tm.x - localMobs[id].x) * 0.3;
+            localMobs[id].y += (tm.y - localMobs[id].y) * 0.3;
+            localMobs[id].facingRight = tm.facingRight;
+            localMobs[id].width = tm.width;
+            localMobs[id].height = tm.height;
+            localMobs[id].type = tm.type;
+        }
+    }
+    for (let id in localMobs) if (!targetMobs[id]) delete localMobs[id];
+
+    for (let i = damageTexts.length - 1; i >= 0; i--) {
+        damageTexts[i].y -= 0.5; 
+        if (--damageTexts[i].life <= 0) damageTexts.splice(i, 1);
+    }
+
+    const myPlayer = localPlayers[socket.id];
+    let pX, pY;
+
     if (myPlayer) {
         camera.x = myPlayer.x - canvas.width / 2;
         camera.y = myPlayer.y - canvas.height / 2;
         if (camera.y > (MAP_HEIGHT * TILE_SIZE) - canvas.height) camera.y = (MAP_HEIGHT * TILE_SIZE) - canvas.height;
+        
+        pX = myPlayer.x;
+        pY = myPlayer.y;
     }
 
     updateMouseWorldPosition();
 
     drawWorld(ctx, camera, canvas.width, canvas.height, gameTime, dayDuration);
-    drawMobs(ctx, mobs, camera);
+    drawMobs(ctx, localMobs, camera);
 
-    for (let id in players) {
-        drawPlayer(ctx, players[id], camera);
+    for (let id in localPlayers) {
+        drawPlayer(ctx, localPlayers[id], camera);
     }
+
+    drawDamageTexts(ctx, damageTexts, camera);
 
     drawNightOverlay(ctx, canvas.width, canvas.height, gameTime, dayDuration);
 
@@ -199,7 +271,11 @@ function loop() {
         ctx.strokeRect(mouseGridX * TILE_SIZE - camera.x, mouseGridY * TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
     }
     
-    drawUI(ctx, canvas.width, hotbar, selectedSlot);
+    drawUI(ctx, canvas.width, hotbar, selectedSlot, pX, pY);
+
+    if (myPlayer && myPlayer.isDead) {
+        drawDeathScreen(ctx, canvas.width, canvas.height);
+    }
 
     requestAnimationFrame(loop);
 }

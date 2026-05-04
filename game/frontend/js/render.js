@@ -182,9 +182,33 @@ export function drawPlayer(ctx, p, camera) {
     ctx.textAlign = "center";
     ctx.shadowColor = "black";
     ctx.shadowBlur = 2;
-    ctx.fillText(p.nick || "Gracz", centerX, sy - 8);
+    ctx.fillText(p.nick || "Gracz", centerX, sy - 18);
     ctx.shadowBlur = 0;
+
+    if (p.hp !== undefined && p.maxHp !== undefined) {
+        const hpPercent = Math.max(0, p.hp / p.maxHp);
+        ctx.fillStyle = "red";
+        ctx.fillRect(centerX - 10, sy - 14, 20, 4);
+        ctx.fillStyle = "#32CD32";
+        ctx.fillRect(centerX - 10, sy - 14, 20 * hpPercent, 4);
+    }
+    
     ctx.textAlign = "start"; 
+}
+
+export function drawDamageTexts(ctx, damageTexts, camera) {
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    for (let t of damageTexts) {
+        const sx = Math.floor(t.x - camera.x);
+        const sy = Math.floor(t.y - camera.y);
+        ctx.fillStyle = `rgba(255, 50, 50, ${t.life / 60})`;
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 2;
+        ctx.fillText(`-${t.dmg}`, sx, sy);
+    }
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "start";
 }
 
 export function drawNightOverlay(ctx, canvasWidth, canvasHeight, time, dayDuration) {
@@ -199,7 +223,7 @@ export function drawNightOverlay(ctx, canvasWidth, canvasHeight, time, dayDurati
     }
 }
 
-export function drawUI(ctx, canvasWidth, hotbar, selectedSlot) {
+export function drawUI(ctx, canvasWidth, hotbar, selectedSlot, playerX, playerY) {
     const slotSize = 40;
     const padding = 10;
     const startX = (canvasWidth - (hotbar.length * (slotSize + padding))) / 2;
@@ -221,6 +245,20 @@ export function drawUI(ctx, canvasWidth, hotbar, selectedSlot) {
     }
     ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.textAlign = "center";
     ctx.fillText(hotbar[selectedSlot].name, canvasWidth / 2, startY + slotSize + 25);
+
+    if (playerX !== undefined && playerY !== undefined) {
+        const gridX = Math.floor(playerX / TILE_SIZE);
+        const gridY = Math.floor(playerY / TILE_SIZE);
+        
+        ctx.textAlign = "right";
+        ctx.font = "bold 16px Arial";
+        ctx.fillStyle = "white";
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 3;
+        ctx.fillText(`X: ${gridX} | Y: ${gridY}`, canvasWidth - 20, 30);
+        ctx.shadowBlur = 0;
+    }
+
     ctx.textAlign = "start"; 
 }
 
@@ -274,4 +312,30 @@ export function drawLasers(ctx, lasers, camera) {
         ctx.lineWidth = 4;
         ctx.stroke();
     }
+}
+
+export function drawDeathScreen(ctx, canvasWidth, canvasHeight) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    ctx.fillStyle = "red";
+    ctx.font = "bold 48px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("NIE ŻYJESZ", canvasWidth / 2, canvasHeight / 2 - 50);
+
+    const btnWidth = 200;
+    const btnHeight = 50;
+    const btnX = canvasWidth / 2 - btnWidth / 2;
+    const btnY = canvasHeight / 2 + 20;
+
+    ctx.fillStyle = "#444";
+    ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText("RESPAWN", canvasWidth / 2, btnY + 34);
+    ctx.textAlign = "start";
 }
