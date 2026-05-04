@@ -9,7 +9,7 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 const myNick = prompt("Podaj swój nick:") || "Gracz";
-const socket = io(SERVER);
+const socket = io(SERVER_DEV);
 
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
@@ -223,6 +223,8 @@ function loop() {
             localMobs[id].width = tm.width;
             localMobs[id].height = tm.height;
             localMobs[id].type = tm.type;
+            localMobs[id].hp = tm.hp;
+            localMobs[id].maxHp = tm.maxHp;
         }
     }
     for (let id in localMobs) if (!targetMobs[id]) delete localMobs[id];

@@ -265,7 +265,8 @@ export function drawUI(ctx, canvasWidth, hotbar, selectedSlot, playerX, playerY)
 export function drawMobs(ctx, mobs, camera) {
     const palette = {
         white: '#F0F0F0', black: '#1a1a1a', hoof: '#0d0d0d',
-        nose: '#ff99cc', udder: '#ffb3d9', horns: '#8c8c8c'
+        nose: '#ff99cc', horns: '#8c8c8c',
+        zSkin: '#4B5320', zShirt: '#008080', zPants: '#483D8B'
     };
 
     for (let id in mobs) {
@@ -294,6 +295,24 @@ export function drawMobs(ctx, mobs, camera) {
             ctx.fillRect(headX + (m.facingRight ? 8 : 4), sy + 5, 2, 2);
             ctx.fillStyle = palette.nose;
             ctx.fillRect(headX + (m.facingRight ? 8 : 2), sy + 10, 4, 3);
+            
+        } else if (m.type === 'zombie') {
+            ctx.fillStyle = palette.zPants;
+            ctx.fillRect(sx + 4, sy + 28, 12, 12);
+            ctx.fillStyle = palette.zShirt;
+            ctx.fillRect(sx + 4, sy + 14, 12, 14);
+            ctx.fillStyle = palette.zSkin;
+            ctx.fillRect(sx + 2, sy, 16, 14);
+            const armDir = m.facingRight ? 4 : -8;
+            ctx.fillRect(sx + 4 + armDir, sy + 14, 16, 4);
+        }
+
+        if (m.hp !== undefined && m.maxHp !== undefined) {
+            const hpPercent = Math.max(0, m.hp / m.maxHp);
+            ctx.fillStyle = "red";
+            ctx.fillRect(sx, sy - 10, m.width, 4);
+            ctx.fillStyle = "#32CD32";
+            ctx.fillRect(sx, sy - 10, m.width * hpPercent, 4);
         }
     }
 }
