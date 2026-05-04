@@ -9,7 +9,7 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 const myNick = prompt("Podaj swój nick:") || "Gracz";
-const socket = io(SERVER_DEV);
+const socket = io(SERVER);
 
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
