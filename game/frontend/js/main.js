@@ -9,7 +9,7 @@ resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
 const myNick = prompt("Podaj swój nick:") || "Gracz";
-const socket = io(SERVER);
+const socket = io(SERVER_DEV);
 
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
@@ -238,8 +238,8 @@ function loop() {
     let pX, pY;
 
     if (myPlayer) {
-        camera.x = myPlayer.x - canvas.width / 2;
-        camera.y = myPlayer.y - canvas.height / 2;
+        camera.x = Math.floor(myPlayer.x - canvas.width / 2);
+        camera.y = Math.floor(myPlayer.y - canvas.height / 2);
         if (camera.y > (MAP_HEIGHT * TILE_SIZE) - canvas.height) camera.y = (MAP_HEIGHT * TILE_SIZE) - canvas.height;
         
         pX = myPlayer.x;

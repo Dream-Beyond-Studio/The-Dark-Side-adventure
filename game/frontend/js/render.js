@@ -255,7 +255,7 @@ export function drawUI(ctx, canvasWidth, hotbar, selectedSlot, playerX, playerY)
         ctx.fillStyle = "white";
         ctx.shadowColor = "black";
         ctx.shadowBlur = 3;
-        ctx.fillText(`X: ${gridX} | Y: ${gridY}`, canvasWidth - 20, 30);
+        ctx.fillText(`X: ${gridX} | Y: ${gridY}`, canvasWidth - 20, 100);
         ctx.shadowBlur = 0;
     }
 
