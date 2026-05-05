@@ -1,4 +1,4 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV } from './config.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV, SERVER } from './config.js'; 
 import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk } from './world.js';
 
