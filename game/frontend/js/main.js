@@ -57,7 +57,7 @@ function initGame() {
     if (val) myNick = val.substring(0, 15);
     loginOverlay.style.display = 'none';
 
-    socket = io(SERVER_DEV);
+    socket = io(SERVER);
 
     socket.on('connect', () => socket.emit('setNick', myNick));
 
