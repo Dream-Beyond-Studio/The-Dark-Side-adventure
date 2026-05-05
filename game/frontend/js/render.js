@@ -182,7 +182,7 @@ export function drawFallingUfos(ctx, ufos, camera) {
     }
 }
 
-export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDuration) {
+export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDuration, isWormholeActive) {
     const isMoon = currentDimension === 'moon';
     const progress = time / dayDuration; 
     
@@ -218,6 +218,19 @@ export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDurat
                 else if (tile === 12) ctx.fillStyle = '#4169E1'; 
                 else if (tile === 13) ctx.fillStyle = '#C0C0C0'; 
                 else if (tile === 14) ctx.fillStyle = '#00FFFF'; 
+                else if (tile === 15) {
+                    if (isWormholeActive) {
+                        ctx.fillStyle = '#FF00FF';
+                        ctx.shadowColor = '#FF00FF';
+                        ctx.shadowBlur = 15;
+                        ctx.fillRect(Math.floor(x * TILE_SIZE - camera.x), Math.floor(y * TILE_SIZE - camera.y), TILE_SIZE, TILE_SIZE);
+                        ctx.shadowBlur = 0;
+                    } else {
+                        ctx.fillStyle = '#4B0082';
+                        ctx.fillRect(Math.floor(x * TILE_SIZE - camera.x), Math.floor(y * TILE_SIZE - camera.y), TILE_SIZE, TILE_SIZE);
+                    }
+                    continue;
+                }
                 else if (tile >= 6 && tile <= 9) {
                     ctx.fillStyle = '#808080'; 
                     ctx.fillRect(Math.floor(x * TILE_SIZE - camera.x), Math.floor(y * TILE_SIZE - camera.y), TILE_SIZE, TILE_SIZE);
@@ -442,6 +455,12 @@ export function drawMobs(ctx, mobs, camera) {
             ctx.fillRect(sx, sy, m.width, m.height);
             ctx.fillStyle = "black";
             ctx.fillRect(sx + (m.facingRight ? 16 : 4), sy + 8, 6, 6);
+            
+        } else if (m.type === 'crawler') {
+            ctx.fillStyle = "#8B008B";
+            ctx.fillRect(sx, sy + 4, m.width, m.height - 4);
+            ctx.fillStyle = "#00FFFF";
+            ctx.fillRect(sx + (m.facingRight ? m.width - 6 : 2), sy + 8, 4, 4);
         }
 
         if (m.hp !== undefined && m.maxHp !== undefined) {

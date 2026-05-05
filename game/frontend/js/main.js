@@ -1,4 +1,4 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER } from './config.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV } from './config.js'; 
 import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen, drawFlightAnimation, drawFallingUfos } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk, setDimension, currentDimension, dimensions } from './world.js';
 
@@ -32,6 +32,7 @@ let damageTexts = [];
 let fallingUfos = [];
 let gameTime = 0; 
 let dayDuration = 3600; 
+let isWormholeActive = false;
 let lastKeysJSON = ""; 
 
 const hotbar = [
@@ -105,6 +106,7 @@ function initGame() {
         targetPlayers = data.players;
         targetMobs = data.mobs;
         gameTime = data.time;
+        isWormholeActive = data.wormhole;
     });
 
     socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type, data.dimension));
@@ -138,6 +140,7 @@ function initGame() {
         const div = document.createElement('div');
         if (msgData.id === 'SYSTEM') {
             if (msgData.nick === 'STORY') div.style.color = '#32CD32';
+            else if (msgData.nick === 'PORTAL') div.style.color = '#FF00FF';
             else div.style.color = '#ffcc00'; 
         }
         div.innerHTML = `<b>${msgData.nick}:</b> ${msgData.text}`;
@@ -206,7 +209,7 @@ canvas.addEventListener('mousedown', e => {
     if (myPlayer.isFlying) return;
 
     const targetTileObj = getTile(mouseGridX, mouseGridY);
-    if (e.button === 2 && targetTileObj === 14) {
+    if (e.button === 2 && (targetTileObj === 14 || targetTileObj === 15)) {
         const dist = Math.sqrt(((mouseGridX*TILE_SIZE+16)-(myPlayer.x+10))**2 + ((mouseGridY*TILE_SIZE+16)-(myPlayer.y+20))**2);
         if (dist <= BUILD_RANGE * TILE_SIZE) {
             socket.emit('interact', { x: mouseGridX, y: mouseGridY });
@@ -256,7 +259,7 @@ function updateMouseWorldPosition() {
     const targetTile = getTile(mouseGridX, mouseGridY);
     const isReplaceable = (targetTile === 0 || targetTile === 4 || targetTile === 12); 
 
-    canMineHere = !isReplaceable && targetTile !== 99 && targetTile !== 14;
+    canMineHere = !isReplaceable && targetTile !== 99 && targetTile !== 14 && targetTile !== 15;
     if (!isReplaceable) { canBuildHere = false; return; }
 
     function isSupport(t) { return t !== 0 && t !== 12 && t !== 4; }
@@ -351,7 +354,7 @@ function loop() {
 
     updateMouseWorldPosition();
 
-    drawWorld(ctx, camera, canvas.width, canvas.height, gameTime, dayDuration);
+    drawWorld(ctx, camera, canvas.width, canvas.height, gameTime, dayDuration, isWormholeActive);
 
     if (currentDimension === 'earth') {
         drawFallingUfos(ctx, fallingUfos, camera);

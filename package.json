@@ -1,6 +1,6 @@
 {
   "name": "the-dark-side-adventure",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Gra w uniwersum The dark side",
   "main": "app.js",
   "scripts": {
