@@ -193,6 +193,14 @@ export function drawPlayer(ctx, p, camera) {
         ctx.fillRect(centerX - 10, sy - 14, 20 * hpPercent, 4);
     }
     
+    if (p.air !== undefined && p.maxAir !== undefined && p.air < p.maxAir) {
+        const airPercent = Math.max(0, p.air / p.maxAir);
+        ctx.fillStyle = "gray";
+        ctx.fillRect(centerX - 10, sy - 19, 20, 4);
+        ctx.fillStyle = "#00BFFF";
+        ctx.fillRect(centerX - 10, sy - 19, 20 * airPercent, 4);
+    }
+
     ctx.textAlign = "start"; 
 }
 
@@ -266,7 +274,9 @@ export function drawMobs(ctx, mobs, camera) {
     const palette = {
         white: '#F0F0F0', black: '#1a1a1a', hoof: '#0d0d0d',
         nose: '#ff99cc', horns: '#8c8c8c',
-        zSkin: '#4B5320', zShirt: '#008080', zPants: '#483D8B'
+        zSkin: '#4B5320', zShirt: '#008080', zPants: '#483D8B',
+        pigSkin: '#ffb3c6', pigNose: '#ff809f',
+        sheepWool: '#e6e6e6', sheepSkin: '#e0b084'
     };
 
     for (let id in mobs) {
@@ -296,6 +306,30 @@ export function drawMobs(ctx, mobs, camera) {
             ctx.fillStyle = palette.nose;
             ctx.fillRect(headX + (m.facingRight ? 8 : 2), sy + 10, 4, 3);
             
+        } else if (m.type === 'pig') {
+            ctx.fillStyle = palette.pigSkin;
+            ctx.fillRect(sx, sy + 6, m.width, 14);
+            ctx.fillRect(sx + (m.facingRight ? m.width - 8 : -4), sy + 4, 12, 12);
+            ctx.fillStyle = palette.pigNose;
+            ctx.fillRect(sx + (m.facingRight ? m.width : -6), sy + 10, 4, 4);
+            ctx.fillStyle = palette.black;
+            ctx.fillRect(sx + (m.facingRight ? m.width - 2 : 0), sy + 6, 2, 2);
+            ctx.fillStyle = palette.pigSkin;
+            ctx.fillRect(sx + 4, sy + 16, 4, 4);
+            ctx.fillRect(sx + m.width - 8, sy + 16, 4, 4);
+
+        } else if (m.type === 'sheep') {
+            ctx.fillStyle = palette.sheepSkin;
+            ctx.fillRect(sx + (m.facingRight ? m.width - 6 : -4), sy + 8, 10, 10);
+            ctx.fillStyle = palette.black;
+            ctx.fillRect(sx + (m.facingRight ? m.width - 2 : 0), sy + 10, 2, 2);
+            ctx.fillStyle = palette.sheepWool;
+            ctx.fillRect(sx, sy + 4, m.width - 4, 18);
+            ctx.fillRect(sx + (m.facingRight ? m.width - 8 : -2), sy + 4, 8, 8);
+            ctx.fillStyle = palette.sheepSkin;
+            ctx.fillRect(sx + 4, sy + 22, 4, 6);
+            ctx.fillRect(sx + m.width - 12, sy + 22, 4, 6);
+
         } else if (m.type === 'zombie') {
             ctx.fillStyle = palette.zPants;
             ctx.fillRect(sx + 4, sy + 28, 12, 12);

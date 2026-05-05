@@ -25,7 +25,6 @@ body {
     overflow: hidden;
 }
 
-/* Sidebar */
 aside {
     width: 280px;
     background-color: var(--bg-sidebar);
@@ -76,7 +75,6 @@ nav a.active { background-color: var(--accent); color: black; font-weight: bold;
     font-weight: bold;
 }
 
-/* Main Content */
 main {
     flex: 1;
     padding: 40px 60px;
@@ -90,7 +88,6 @@ section:last-child { border-bottom: none; }
 h1.section-title { font-size: 2rem; color: var(--accent); margin-bottom: 10px; }
 p { line-height: 1.6; color: #ccc; }
 
-/* Cards */
 .card {
     background-color: var(--bg-card);
     border: 1px solid var(--border);
@@ -102,7 +99,6 @@ p { line-height: 1.6; color: #ccc; }
 
 .card h3 { margin-top: 0; color: #fff; display: flex; align-items: center; gap: 10px; font-family: monospace; font-size: 1.1rem; }
 
-/* Tags */
 .tag {
     font-size: 0.7rem;
     padding: 2px 6px;
@@ -114,7 +110,6 @@ p { line-height: 1.6; color: #ccc; }
 .cli { background-color: var(--tag-client); }
 .sha { background-color: var(--tag-shared); }
 
-/* Code & Types */
 code {
     background-color: rgba(255,255,255,0.1);
     padding: 2px 4px;
@@ -134,12 +129,10 @@ pre code { background: none; color: #d4d4d4; padding: 0; }
 .type { color: #4ec9b0; font-family: monospace; }
 .return-val { margin-top: 10px; font-style: italic; color: #ce9178; }
 
-/* Tables */
 table { width: 100%; border-collapse: collapse; margin-top: 15px; }
 th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
 th { color: var(--accent); }
 
-/* Param Tables (Szczegółowe) */
 .param-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
 .param-table th { background: #333; color: #fff; padding: 5px; text-align: left; }
 .param-table td { border: 1px solid #444; padding: 5px; color: #ccc; }

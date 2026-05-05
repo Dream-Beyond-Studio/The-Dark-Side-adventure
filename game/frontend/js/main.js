@@ -1,4 +1,4 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER, SERVER_DEV } from './config.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV } from './config.js'; 
 import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk } from './world.js';
 
@@ -8,12 +8,15 @@ function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = wind
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-const myNick = prompt("Podaj swój nick:") || "Gracz";
-const socket = io(SERVER);
-
+const loginOverlay = document.getElementById('loginOverlay');
+const nickInput = document.getElementById('nickInput');
+const playBtn = document.getElementById('playBtn');
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
+
 let isChatting = false;
+let socket;
+let myNick = "Gracz";
 
 const camera = { x: 0, y: 0 };
 const keys = { left: false, right: false, jump: false };
@@ -44,38 +47,53 @@ let mouseGridX = 0, mouseGridY = 0, screenMouseX = 0, screenMouseY = 0;
 let canBuildHere = false;
 let canMineHere = false;
 
-socket.on('connect', () => socket.emit('setNick', myNick));
-
-socket.on('initWorld', (data) => {
-    initWorldData(data.chunks, data.worldChanges);
-    dayDuration = data.dayDuration;
+playBtn.addEventListener('click', initGame);
+nickInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') initGame();
 });
 
-socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data));
+function initGame() {
+    const val = nickInput.value.trim();
+    if (val) myNick = val.substring(0, 15);
+    loginOverlay.style.display = 'none';
 
-socket.on('gameState', (data) => {
-    targetPlayers = data.players;
-    targetMobs = data.mobs;
-    gameTime = data.time;
-});
+    socket = io(SERVER_DEV);
 
-socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type));
+    socket.on('connect', () => socket.emit('setNick', myNick));
 
-socket.on('playerShoot', (data) => {
-    lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10 });
-});
+    socket.on('initWorld', (data) => {
+        initWorldData(data.chunks, data.worldChanges);
+        dayDuration = data.dayDuration;
+    });
 
-socket.on('damageText', (data) => {
-    damageTexts.push({ x: data.x, y: data.y, dmg: data.dmg, life: 60 });
-});
+    socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data));
 
-socket.on('chatMessage', (msgData) => {
-    const div = document.createElement('div');
-    if (msgData.id === 'SYSTEM') div.style.color = '#ffcc00'; 
-    div.innerHTML = `<b>${msgData.nick}:</b> ${msgData.text}`;
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-});
+    socket.on('gameState', (data) => {
+        targetPlayers = data.players;
+        targetMobs = data.mobs;
+        gameTime = data.time;
+    });
+
+    socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type));
+
+    socket.on('playerShoot', (data) => {
+        lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10 });
+    });
+
+    socket.on('damageText', (data) => {
+        damageTexts.push({ x: data.x, y: data.y, dmg: data.dmg, life: 60 });
+    });
+
+    socket.on('chatMessage', (msgData) => {
+        const div = document.createElement('div');
+        if (msgData.id === 'SYSTEM') div.style.color = '#ffcc00'; 
+        div.innerHTML = `<b>${msgData.nick}:</b> ${msgData.text}`;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    loop();
+}
 
 chatInput.addEventListener('focus', () => isChatting = true);
 chatInput.addEventListener('blur', () => {
@@ -86,7 +104,7 @@ chatInput.addEventListener('blur', () => {
 chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
         const msg = chatInput.value.trim();
-        if (msg) socket.emit('chatMessage', msg);
+        if (msg && socket) socket.emit('chatMessage', msg);
         chatInput.value = '';
         chatInput.blur();
         canvas.focus();
@@ -94,8 +112,8 @@ chatInput.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !isChatting) { chatInput.focus(); e.preventDefault(); return; }
-    if (isChatting) return; 
+    if (e.key === 'Enter' && !isChatting && socket) { chatInput.focus(); e.preventDefault(); return; }
+    if (isChatting || !socket) return; 
     
     if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
@@ -106,7 +124,7 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('keyup', e => {
-    if (isChatting) return; 
+    if (isChatting || !socket) return; 
     if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
     if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.jump = false;
@@ -115,7 +133,7 @@ window.addEventListener('keyup', e => {
 canvas.addEventListener('mousemove', e => { screenMouseX = e.clientX; screenMouseY = e.clientY; });
 
 canvas.addEventListener('mousedown', e => {
-    if (isChatting) return;
+    if (isChatting || !socket) return;
 
     const myPlayer = localPlayers[socket.id];
     if (!myPlayer) return;
@@ -186,6 +204,11 @@ function updateMouseWorldPosition() {
 }
 
 function loop() {
+    if (!socket || !socket.id) {
+        requestAnimationFrame(loop);
+        return;
+    }
+
     const currentKeysJSON = JSON.stringify(keys);
     if (currentKeysJSON !== lastKeysJSON) {
         socket.emit('input', keys);
@@ -207,6 +230,8 @@ function loop() {
             localPlayers[id].height = tp.height;
             localPlayers[id].hp = tp.hp;
             localPlayers[id].maxHp = tp.maxHp;
+            localPlayers[id].air = tp.air;
+            localPlayers[id].maxAir = tp.maxAir;
             localPlayers[id].isDead = tp.isDead;
         }
     }
@@ -281,5 +306,3 @@ function loop() {
 
     requestAnimationFrame(loop);
 }
-
-loop();
