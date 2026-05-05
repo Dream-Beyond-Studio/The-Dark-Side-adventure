@@ -10,6 +10,15 @@
         <div class="loginBox">
             <h1>The Dark Side</h1>
             <input type="text" id="nickInput" placeholder="Enter Nickname" maxlength="15" autocomplete="off">
+            <input type="text" id="serverInput" placeholder="Server IP (np. http://localhost:3000)" autocomplete="off">
+            
+            <div id="classSelection" style="margin: 20px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+                <button class="classBtn selected" data-class="soldier" style="background: #444; color: white; border: 2px solid #32CD32; padding: 10px; cursor: pointer; width: 45%;">Soldier</button>
+                <button class="classBtn" data-class="scientist" style="background: #333; color: white; border: 2px solid #555; padding: 10px; cursor: pointer; width: 45%;">Scientist</button>
+                <button class="classBtn" data-class="engineer" style="background: #333; color: white; border: 2px solid #555; padding: 10px; cursor: pointer; width: 45%;">Engineer</button>
+                <button class="classBtn" data-class="scout" style="background: #333; color: white; border: 2px solid #555; padding: 10px; cursor: pointer; width: 45%;">Scout</button>
+            </div>
+            
             <button id="playBtn">PLAY</button>
         </div>
     </div>

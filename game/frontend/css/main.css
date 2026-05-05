@@ -109,12 +109,12 @@ canvas {
 
 .loginBox input {
     display: block;
-    margin: 20px auto;
+    margin: 15px auto;
     padding: 10px;
-    font-size: 18px;
+    font-size: 16px;
     width: 80%;
     text-align: center;
-    border: 2px solid #555;
+    border: 1px solid #555;
     background: #111;
     color: white;
 }

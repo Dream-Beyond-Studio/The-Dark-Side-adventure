@@ -1,6 +1,6 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV, SERVER } from './config.js'; 
-import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen } from './render.js'; 
-import { getTile, setTile, initWorldData, updateChunk } from './world.js';
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER } from './config.js'; 
+import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen, drawFlightAnimation, drawFallingUfos } from './render.js'; 
+import { getTile, setTile, initWorldData, updateChunk, setDimension, currentDimension, dimensions } from './world.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -10,13 +10,15 @@ window.addEventListener('resize', resizeCanvas);
 
 const loginOverlay = document.getElementById('loginOverlay');
 const nickInput = document.getElementById('nickInput');
+const serverInput = document.getElementById('serverInput');
 const playBtn = document.getElementById('playBtn');
 const chatInput = document.getElementById('chat-input');
 const chatMessages = document.getElementById('chat-messages');
 
 let isChatting = false;
 let socket;
-let myNick = "Gracz";
+let playerNick = "Gracz";
+let selectedClass = "soldier";
 
 const camera = { x: 0, y: 0 };
 const keys = { left: false, right: false, jump: false };
@@ -27,6 +29,7 @@ let targetMobs = {};
 
 let lasers = [];
 let damageTexts = [];
+let fallingUfos = [];
 let gameTime = 0; 
 let dayDuration = 3600; 
 let lastKeysJSON = ""; 
@@ -47,26 +50,56 @@ let mouseGridX = 0, mouseGridY = 0, screenMouseX = 0, screenMouseY = 0;
 let canBuildHere = false;
 let canMineHere = false;
 
+document.querySelectorAll('.classBtn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.classBtn').forEach(b => {
+            b.classList.remove('selected');
+            b.style.borderColor = '#555';
+            b.style.background = '#333';
+        });
+        e.target.classList.add('selected');
+        e.target.style.borderColor = '#32CD32';
+        e.target.style.background = '#444';
+        selectedClass = e.target.dataset.class;
+    });
+});
+
 playBtn.addEventListener('click', initGame);
 nickInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') initGame();
 });
+serverInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') initGame();
+});
 
 function initGame() {
-    const val = nickInput.value.trim();
-    if (val) myNick = val.substring(0, 15);
+    const nickVal = nickInput.value.trim();
+    if (nickVal) playerNick = nickVal.substring(0, 15);
+
+    let serverUrl = serverInput.value.trim();
+    if (!serverUrl) serverUrl = 'http://localhost:3000';
+
     loginOverlay.style.display = 'none';
 
-    socket = io(SERVER);
+    socket = io(serverUrl);
 
-    socket.on('connect', () => socket.emit('setNick', myNick));
+    socket.on('connect', () => socket.emit('setNick', { nick: playerNick, characterClass: selectedClass }));
 
     socket.on('initWorld', (data) => {
         initWorldData(data.chunks, data.worldChanges);
         dayDuration = data.dayDuration;
     });
 
-    socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data));
+    socket.on('dimensionChange', (data) => {
+        setDimension(data.dimension);
+    });
+
+    socket.on('initDimension', (data) => {
+        dimensions[data.dimension].chunks = data.chunks;
+        dimensions[data.dimension].worldChanges = data.worldChanges;
+    });
+
+    socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data, data.dimension));
 
     socket.on('gameState', (data) => {
         targetPlayers = data.players;
@@ -74,19 +107,39 @@ function initGame() {
         gameTime = data.time;
     });
 
-    socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type));
+    socket.on('blockUpdate', (data) => setTile(data.x, data.y, data.type, data.dimension));
 
     socket.on('playerShoot', (data) => {
-        lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10 });
+        if (data.dimension === currentDimension) {
+            lasers.push({ x1: data.x1, y1: data.y1, x2: data.x2, y2: data.y2, life: 10, color: data.color || '#FF0000' });
+        }
+    });
+
+    socket.on('ufoCrash', (data) => {
+        fallingUfos.push({
+            startX: data.x + 1800,
+            startY: data.y - 1500,
+            targetX: data.x,
+            targetY: data.y,
+            currentX: data.x + 1800,
+            currentY: data.y - 1500,
+            timer: 360,
+            maxTimer: 360
+        });
     });
 
     socket.on('damageText', (data) => {
-        damageTexts.push({ x: data.x, y: data.y, dmg: data.dmg, life: 60 });
+        if (data.dimension === currentDimension) {
+            damageTexts.push({ x: data.x, y: data.y, dmg: data.dmg, life: 60 });
+        }
     });
 
     socket.on('chatMessage', (msgData) => {
         const div = document.createElement('div');
-        if (msgData.id === 'SYSTEM') div.style.color = '#ffcc00'; 
+        if (msgData.id === 'SYSTEM') {
+            if (msgData.nick === 'STORY') div.style.color = '#32CD32';
+            else div.style.color = '#ffcc00'; 
+        }
         div.innerHTML = `<b>${msgData.nick}:</b> ${msgData.text}`;
         chatMessages.appendChild(div);
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -150,6 +203,17 @@ canvas.addEventListener('mousedown', e => {
         return;
     }
 
+    if (myPlayer.isFlying) return;
+
+    const targetTileObj = getTile(mouseGridX, mouseGridY);
+    if (e.button === 2 && targetTileObj === 14) {
+        const dist = Math.sqrt(((mouseGridX*TILE_SIZE+16)-(myPlayer.x+10))**2 + ((mouseGridY*TILE_SIZE+16)-(myPlayer.y+20))**2);
+        if (dist <= BUILD_RANGE * TILE_SIZE) {
+            socket.emit('interact', { x: mouseGridX, y: mouseGridY });
+            return;
+        }
+    }
+
     const targetItem = hotbar[selectedSlot].id;
 
     if (targetItem === ITEM_LASER) {
@@ -164,7 +228,8 @@ canvas.addEventListener('mousedown', e => {
                 y1: myPlayer.y + myPlayer.height / 2,
                 x2: targetX,
                 y2: targetY,
-                life: 10
+                life: 10,
+                color: '#FF0000'
             });
         }
         return;
@@ -179,7 +244,7 @@ canvas.addEventListener('mousedown', e => {
     if (e.button === 2 && !canBuildHere) return; 
 
     socket.emit('blockUpdate', { x: mouseGridX, y: mouseGridY, type: type });
-    setTile(mouseGridX, mouseGridY, type); 
+    setTile(mouseGridX, mouseGridY, type, currentDimension); 
 });
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -191,7 +256,7 @@ function updateMouseWorldPosition() {
     const targetTile = getTile(mouseGridX, mouseGridY);
     const isReplaceable = (targetTile === 0 || targetTile === 4 || targetTile === 12); 
 
-    canMineHere = !isReplaceable && targetTile !== 99;
+    canMineHere = !isReplaceable && targetTile !== 99 && targetTile !== 14;
     if (!isReplaceable) { canBuildHere = false; return; }
 
     function isSupport(t) { return t !== 0 && t !== 12 && t !== 4; }
@@ -233,6 +298,9 @@ function loop() {
             localPlayers[id].air = tp.air;
             localPlayers[id].maxAir = tp.maxAir;
             localPlayers[id].isDead = tp.isDead;
+            localPlayers[id].isFlying = tp.isFlying;
+            localPlayers[id].flightTimer = tp.flightTimer;
+            localPlayers[id].dimension = tp.dimension;
         }
     }
     for (let id in localPlayers) if (!targetPlayers[id]) delete localPlayers[id];
@@ -250,6 +318,7 @@ function loop() {
             localMobs[id].type = tm.type;
             localMobs[id].hp = tm.hp;
             localMobs[id].maxHp = tm.maxHp;
+            localMobs[id].dimension = tm.dimension;
         }
     }
     for (let id in localMobs) if (!targetMobs[id]) delete localMobs[id];
@@ -257,6 +326,15 @@ function loop() {
     for (let i = damageTexts.length - 1; i >= 0; i--) {
         damageTexts[i].y -= 0.5; 
         if (--damageTexts[i].life <= 0) damageTexts.splice(i, 1);
+    }
+
+    for (let i = fallingUfos.length - 1; i >= 0; i--) {
+        let ufo = fallingUfos[i];
+        ufo.timer--;
+        const p = 1 - (ufo.timer / ufo.maxTimer);
+        ufo.currentX = ufo.startX + (ufo.targetX - ufo.startX) * p;
+        ufo.currentY = ufo.startY + (ufo.targetY - ufo.startY) * p;
+        if (ufo.timer <= 0) fallingUfos.splice(i, 1);
     }
 
     const myPlayer = localPlayers[socket.id];
@@ -274,10 +352,21 @@ function loop() {
     updateMouseWorldPosition();
 
     drawWorld(ctx, camera, canvas.width, canvas.height, gameTime, dayDuration);
-    drawMobs(ctx, localMobs, camera);
+
+    if (currentDimension === 'earth') {
+        drawFallingUfos(ctx, fallingUfos, camera);
+    }
+
+    let visibleMobs = {};
+    for (let id in localMobs) {
+        if (localMobs[id].dimension === currentDimension) visibleMobs[id] = localMobs[id];
+    }
+    drawMobs(ctx, visibleMobs, camera);
 
     for (let id in localPlayers) {
-        drawPlayer(ctx, localPlayers[id], camera);
+        if (localPlayers[id].dimension === currentDimension) {
+            drawPlayer(ctx, localPlayers[id], camera);
+        }
     }
 
     drawDamageTexts(ctx, damageTexts, camera);
@@ -302,6 +391,10 @@ function loop() {
 
     if (myPlayer && myPlayer.isDead) {
         drawDeathScreen(ctx, canvas.width, canvas.height);
+    }
+    
+    if (myPlayer && myPlayer.isFlying) {
+        drawFlightAnimation(ctx, canvas.width, canvas.height, myPlayer.flightTimer);
     }
 
     requestAnimationFrame(loop);

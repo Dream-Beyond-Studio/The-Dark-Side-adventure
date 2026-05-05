@@ -1,5 +1,5 @@
 import { TILE_SIZE } from './config.js';
-import { getTile } from './world.js';
+import { getTile, currentDimension } from './world.js';
 
 const STARS_COUNT = 150;
 let stars = [];
@@ -97,13 +97,106 @@ function drawCelestialBodies(ctx, canvasWidth, canvasHeight, progress) {
     }
 }
 
+function drawMoonCelestialBodies(ctx, canvasWidth, canvasHeight, progress) {
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight + 50; 
+    const radius = canvasWidth * 0.45; 
+
+    const earthProgress = progress; 
+    if (earthProgress > 0.1 && earthProgress < 0.9) {
+        const earthRange = (earthProgress - 0.1) / 0.8;
+        const angle = Math.PI + (earthRange * Math.PI);
+        const earthX = centerX + Math.cos(angle) * radius;
+        const earthY = centerY + Math.sin(angle) * radius;
+
+        const glow = ctx.createRadialGradient(earthX, earthY, 30, earthX, earthY, 80);
+        glow.addColorStop(0, "rgba(100, 150, 255, 0.3)");
+        glow.addColorStop(1, "rgba(100, 150, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(earthX - 80, earthY - 80, 160, 160);
+        
+        ctx.fillStyle = "#1E90FF"; 
+        ctx.fillRect(earthX - 30, earthY - 30, 60, 60); 
+        ctx.fillStyle = "#32CD32"; 
+        ctx.fillRect(earthX - 20, earthY - 10, 20, 20);
+        ctx.fillRect(earthX + 5, earthY - 20, 15, 25);
+        ctx.fillStyle = "#FFFFFF"; 
+        ctx.fillRect(earthX - 25, earthY - 25, 15, 10);
+        ctx.fillRect(earthX - 10, earthY + 20, 30, 10);
+    }
+
+    const sunProgress = (progress + 0.3) % 1.0; 
+    if (sunProgress > 0.15 && sunProgress < 0.85) {
+        const sunRange = (sunProgress - 0.15) / 0.7; 
+        const angle = Math.PI + (sunRange * Math.PI); 
+        const sunX = centerX + Math.cos(angle) * radius;
+        const sunY = centerY + Math.sin(angle) * radius; 
+
+        const glow = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 100);
+        glow.addColorStop(0, "rgba(255, 255, 255, 0.8)");
+        glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(sunX - 100, sunY - 100, 200, 200); 
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(sunX - 20, sunY - 20, 40, 40); 
+    }
+}
+
+export function drawFallingUfos(ctx, ufos, camera) {
+    for (let ufo of ufos) {
+        const sx = Math.floor(ufo.currentX - camera.x);
+        const sy = Math.floor(ufo.currentY - camera.y);
+
+        const tailLength = 300;
+        const gradient = ctx.createLinearGradient(sx, sy, sx + tailLength, sy - tailLength);
+        gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+        gradient.addColorStop(0.2, "rgba(255, 200, 0, 0.8)");
+        gradient.addColorStop(0.6, "rgba(255, 50, 0, 0.4)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + tailLength + 50, sy - tailLength + 20);
+        ctx.lineTo(sx + tailLength + 20, sy - tailLength + 50);
+        ctx.fill();
+
+        const glow = ctx.createRadialGradient(sx, sy, 10, sx, sy, 100);
+        glow.addColorStop(0, "rgba(255, 255, 200, 1)");
+        glow.addColorStop(0.4, "rgba(255, 100, 0, 0.6)");
+        glow.addColorStop(1, "rgba(255, 0, 0, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 100, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#C0C0C0";
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, 40, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#00FFFF";
+        ctx.beginPath();
+        ctx.arc(sx, sy - 5, 20, Math.PI, 0);
+        ctx.fill();
+    }
+}
+
 export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDuration) {
-    const progress = time / dayDuration;
+    const isMoon = currentDimension === 'moon';
+    const progress = time / dayDuration; 
     
-    ctx.fillStyle = getSmoothSkyColor(progress);
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    drawStars(ctx, canvasWidth, canvasHeight, progress, time);
-    drawCelestialBodies(ctx, canvasWidth, canvasHeight, progress);
+    if (isMoon) {
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        drawStars(ctx, canvasWidth, canvasHeight, 1.0, time);
+        drawMoonCelestialBodies(ctx, canvasWidth, canvasHeight, progress);
+    } else {
+        ctx.fillStyle = getSmoothSkyColor(progress);
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        drawStars(ctx, canvasWidth, canvasHeight, progress, time);
+        drawCelestialBodies(ctx, canvasWidth, canvasHeight, progress);
+    }
 
     const startCol = Math.floor(camera.x / TILE_SIZE) - 1;
     const endCol = Math.floor((camera.x + canvasWidth) / TILE_SIZE) + 1;
@@ -123,7 +216,9 @@ export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDurat
                 else if (tile === 10) ctx.fillStyle = '#DEB887'; 
                 else if (tile === 11) ctx.fillStyle = '#B22222';
                 else if (tile === 12) ctx.fillStyle = '#4169E1'; 
-                else if (tile >= 6) {
+                else if (tile === 13) ctx.fillStyle = '#C0C0C0'; 
+                else if (tile === 14) ctx.fillStyle = '#00FFFF'; 
+                else if (tile >= 6 && tile <= 9) {
                     ctx.fillStyle = '#808080'; 
                     ctx.fillRect(Math.floor(x * TILE_SIZE - camera.x), Math.floor(y * TILE_SIZE - camera.y), TILE_SIZE, TILE_SIZE);
                     if (tile === 6) ctx.fillStyle = '#000000';      
@@ -220,6 +315,8 @@ export function drawDamageTexts(ctx, damageTexts, camera) {
 }
 
 export function drawNightOverlay(ctx, canvasWidth, canvasHeight, time, dayDuration) {
+    if (currentDimension === 'moon') return;
+
     const progress = time / dayDuration;
     let darkness = (Math.cos(progress * Math.PI * 2) + 1) / 2;
     darkness = Math.pow(darkness, 4);
@@ -339,6 +436,12 @@ export function drawMobs(ctx, mobs, camera) {
             ctx.fillRect(sx + 2, sy, 16, 14);
             const armDir = m.facingRight ? 4 : -8;
             ctx.fillRect(sx + 4 + armDir, sy + 14, 16, 4);
+
+        } else if (m.type === 'alien') {
+            ctx.fillStyle = "#00FF00"; 
+            ctx.fillRect(sx, sy, m.width, m.height);
+            ctx.fillStyle = "black";
+            ctx.fillRect(sx + (m.facingRight ? 16 : 4), sy + 8, 6, 6);
         }
 
         if (m.hp !== undefined && m.maxHp !== undefined) {
@@ -361,9 +464,11 @@ export function drawLasers(ctx, lasers, camera) {
         ctx.beginPath();
         ctx.moveTo(sx1, sy1);
         ctx.lineTo(sx2, sy2);
-        ctx.strokeStyle = `rgba(255, 0, 0, ${l.life / 10})`;
+        ctx.globalAlpha = l.life / 10;
+        ctx.strokeStyle = l.color;
         ctx.lineWidth = 4;
         ctx.stroke();
+        ctx.globalAlpha = 1.0;
     }
 }
 
@@ -391,4 +496,63 @@ export function drawDeathScreen(ctx, canvasWidth, canvasHeight) {
     ctx.font = "bold 24px Arial";
     ctx.fillText("RESPAWN", canvasWidth / 2, btnY + 34);
     ctx.textAlign = "start";
+}
+
+export function drawFlightAnimation(ctx, canvasWidth, canvasHeight, timer) {
+    const maxTimer = 180;
+    const progress = 1 - (timer / maxTimer);
+
+    ctx.fillStyle = "black";
+    if (progress < 0.2) {
+        ctx.globalAlpha = progress * 5;
+    } else if (progress > 0.8) {
+        ctx.globalAlpha = (1 - progress) * 5;
+    } else {
+        ctx.globalAlpha = 1.0;
+    }
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.globalAlpha = 1.0;
+
+    if (progress >= 0.2 && progress <= 0.8) {
+        const ufoX = canvasWidth * 0.5;
+        const ufoY = canvasHeight / 2;
+        
+        ctx.strokeStyle = "white";
+        ctx.beginPath();
+        for(let i=0; i<100; i++) {
+            const y = Math.random() * canvasHeight;
+            const x = (Math.random() * canvasWidth + timer * 30) % canvasWidth;
+            const length = Math.random() * 80 + 40;
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + length, y);
+        }
+        ctx.stroke();
+
+        const shakeX = (Math.random() - 0.5) * 4;
+        const shakeY = (Math.random() - 0.5) * 4;
+        
+        ctx.fillStyle = "rgba(255, 100, 0, 0.9)";
+        for(let i=0; i<15; i++) {
+            ctx.beginPath();
+            ctx.arc(ufoX - 60 - Math.random() * 120, ufoY + Math.random() * 20 - 10 + shakeY, Math.random() * 15 + 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        ctx.fillStyle = "rgba(100, 100, 100, 0.5)";
+        for(let i=0; i<20; i++) {
+            ctx.beginPath();
+            ctx.arc(ufoX - 100 - Math.random() * 200, ufoY + Math.random() * 50 - 25 + shakeY, Math.random() * 25 + 15, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.fillStyle = "#C0C0C0";
+        ctx.beginPath();
+        ctx.ellipse(ufoX + shakeX, ufoY + shakeY + 10, 60, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = "#00FFFF";
+        ctx.beginPath();
+        ctx.arc(ufoX + shakeX, ufoY + shakeY - 5, 30, Math.PI, 0);
+        ctx.fill();
+    }
 }
