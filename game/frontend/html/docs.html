@@ -10,7 +10,7 @@
 <aside>
     <h1>The Dark Side</h1>
     <h2>Adventure</h2>
-    <div style="font-size: 0.8rem; margin-bottom: 20px; color: #666;">Wersja: 0.1.7</div>
+    <div style="font-size: 0.8rem; margin-bottom: 20px; color: #666;">Wersja: 0.2.2</div>
 
     <nav>
         <div class="nav-section">Pliki Serwera (Backend)</div>
@@ -26,12 +26,16 @@
         <ul>
             <li><a href="#main">main.js (Główny)</a></li>
             <li><a href="#render">render.js (Grafika i UI)</a></li>
+            <li><a href="#config">config.js (Stałe Klienta)</a></li>
         </ul>
 
         <div class="nav-section">Mechaniki Gry</div>
         <ul>
-            <li><a href="#mechanics-combat">Walka i HP</a></li>
-            <li><a href="#mechanics-mobs">Moby (Krowy i Zombie)</a></li>
+            <li><a href="#mechanics-dimensions">Wymiary i UFO</a></li>
+            <li><a href="#mechanics-crafting">Ekwipunek i Crafting</a></li>
+            <li><a href="#mechanics-combat">Walka i Raycasting</a></li>
+            <li><a href="#mechanics-mobs">Moby i AI</a></li>
+            <li><a href="#mechanics-water">Fizyka Wody</a></li>
         </ul>
     </nav>
 </aside>
@@ -39,18 +43,22 @@
 <main>
     <section id="intro">
         <h1 class="section-title">Wprowadzenie</h1>
-        <p>Szczegółowa dokumentacja rozproszonej architektury silnika gry The Dark Side. Projekt został podzielony na moduły w celu optymalizacji i łatwiejszego zarządzania kodem.</p>
+        <p>Szczegółowa dokumentacja rozproszonej architektury silnika gry The Dark Side. Projekt został podzielony na moduły w celu optymalizacji, wsparcia oddzielnych wymiarów oraz łatwiejszego zarządzania kodem.</p>
     </section>
 
     <section id="server">
         <h1 class="section-title">Backend: server.js</h1>
         <div class="card">
             <h3>Pętla Główna (Tickrate 60)</h3>
-            <p>Odpowiada za fizykę, poruszanie się mobów oraz sztuczną inteligencję. W tej pętli sprawdzane są również warunki zmiany pory dnia (zmienna <code>isNight</code>).</p>
+            <p>Odpowiada za fizykę, poruszanie się mobów oraz sztuczną inteligencję. W tej pętli sprawdzane są warunki zmiany pory dnia, fizyka rozlewania się wody oraz obsługa cyklicznego portalu tunelu czasoprzestrzennego (zmienna <code>wormholeTimer</code>).</p>
         </div>
         <div class="card">
             <h3>Pętla Sieciowa (Tickrate 20)</h3>
             <p>Zoptymalizowana pętla wysyłająca zredukowaną liczbę pakietów <code>gameState</code> do klientów. Oszczędza przepustowość łącza.</p>
+        </div>
+        <div class="card">
+            <h3>Raycasting (hasLineOfSight)</h3>
+            <p>Algorytm działający po stronie serwera. Weryfikuje widoczność w linii prostej i blokuje przenikanie strzałów kosmitów przez stałe obiekty oraz zapobiega kopaniu/budowaniu przez gracza za zamkniętymi ścianami.</p>
         </div>
     </section>
 
@@ -58,83 +66,115 @@
         <h1 class="section-title">Backend: serverConfig.js</h1>
         <div class="card">
             <h3>Stałe Konfiguracyjne</h3>
-            <p>Przechowuje globalne ustawienia silnika, takie jak <code>TILE_SIZE</code>, <code>MAP_HEIGHT</code>, <code>GRAVITY</code> oraz statystyki przeciwników (<code>MOBS_CONFIG</code>).</p>
+            <p>Przechowuje globalne ustawienia silnika, takie jak <code>TILE_SIZE</code>, <code>MAP_HEIGHT</code>, tablicę reguł <code>RECIPES</code> do systemu rzemiosła oraz statystyki zdrowia i siły poszczególnych przeciwników w <code>MOBS_CONFIG</code>.</p>
         </div>
     </section>
 
     <section id="database">
         <h1 class="section-title">Backend: database.js</h1>
         <div class="card">
-            <h3>Obsługa SQLite</h3>
-            <p>Zarządza plikiem <code>game.db</code>. Automatycznie zapisuje pozycję X/Y graczy do trwałej bazy danych podczas wyjścia z serwera, resetu lub okresowego autozapisu (co 10 sekund).</p>
+            <h3>Obsługa SQLite i Zapis Świata</h3>
+            <p>Zarządza plikiem <code>game.db</code>. Rejestruje pozycję X/Y graczy, wymiar w którym się znajdują (<code>dimension</code>) oraz stan ekwipunku kompresowany jako JSON (<code>inventory</code>). Ponadto zapisuje zmodyfikowane bloki w mapie chunka (<code>worldChanges</code>), gwarantując że zbudowane bazy przetrwają restart.</p>
         </div>
     </section>
 
     <section id="world-gen">
         <h1 class="section-title">Backend: worldGenerator.js</h1>
         <div class="card">
-            <h3><span class="tag srv">Function</span> getTerrainHeight(worldX)</h3>
-            <p>Proceduralne generowanie terenu z użyciem fal sinusowych, określające bezpieczną wysokość dla respawnu graczy i mobów.</p>
+            <h3><span class="tag srv">Function</span> getTerrainHeight(worldX, dimension)</h3>
+            <p>Proceduralne generowanie ukształtowania z użyciem nakładających się fal sinusowych. Wymiar Ziemi posiada złożoną strukturę topograficzną, z kolei Księżyc generuje łagodne fale reprezentujące kratery i księżycowy pył.</p>
         </div>
         <div class="card">
-            <h3><span class="tag srv">Function</span> generateChunkData(chunkX)</h3>
-            <p>Generuje strukturę świata: ziemię, wodę, jaskinie, drzewa i rudy (żelazo, złoto). Drzewa i rudy generowane są w drugiej fazie w celu uniknięcia obcinania klocków na granicach chunków.</p>
+            <h3><span class="tag srv">Function</span> generateChunkData(chunkX, dimension)</h3>
+            <p>Generuje strukturę świata: wodę, jaskinie, drzewa i rudy na Ziemi. Generując chunki Księżyca, funkcja ma 10% szansy na umieszczenie pod powierzchnią zaawansowanego laboratorium obcych zawierającego rdzeń <code>tile 15</code>.</p>
         </div>
     </section>
 
     <section id="server-physics">
         <h1 class="section-title">Backend: physics.js</h1>
         <div class="card">
-            <h3><span class="tag srv">Function</span> applyPhysics(entity)</h3>
-            <p>Kompleksowy silnik fizyczny obsługujący kolizje dla graczy i mobów. Zawiera wykrywanie wejścia do wody (spowolnienie ruchu i zmiana grawitacji) oraz rejestruje <code>highestY</code> w celu późniejszego obliczenia obrażeń od upadku.</p>
+            <h3><span class="tag srv">Function</span> applyPhysics(entity, dimensions)</h3>
+            <p>Silnik fizyczny obsługujący kolizje z uwzględnieniem odseparowanych pamięci mapowych dla Ziemi i Księżyca. Zawiera wykrywanie wejścia do wody (spowolnienie) i kontrolę punktu najwyższego <code>highestY</code> pod obrażenia z upadku.</p>
         </div>
     </section>
 
     <section id="main">
         <h1 class="section-title">Frontend: main.js</h1>
         <div class="card">
-            <h3>Interpolacja (LERP)</h3>
-            <p>Płynne dociąganie pozycji (<code>localPlayers</code> i <code>localMobs</code>) między rzadkimi pakietami serwera. Gwarantuje płynny obraz nawet przy opóźnieniach sieci.</p>
+            <h3>Interakcje i Crafting</h3>
+            <p>Obsługuje podnoszenie klocków, zarządzanie interfejsem ekwipunku oraz uruchamianie okna rzemiosła po wciśnięciu klawisza E. Kontroluje wybraną w menu klasę startową.</p>
         </div>
         <div class="card">
-            <h3>Throttling Klawiatury</h3>
-            <p>Klient wysyła stan klawiszy (<code>inputs</code>) do serwera tylko w momencie ich zmiany, co drastycznie zmniejsza obciążenie łącza.</p>
+            <h3>Interpolacja i Optymalizacja</h3>
+            <p>Płynne dociąganie zmiennych pozycji (<code>localPlayers</code>, <code>localMobs</code>) między pakietami serwera. Klient wysyła stan klawiszy (<code>inputs</code>) tylko wtedy, kiedy ulegnie on zmianie w stosunku do poprzedniego stanu.</p>
         </div>
     </section>
 
     <section id="render">
         <h1 class="section-title">Frontend: render.js</h1>
         <div class="card">
-            <h3>UI i Overlay</h3>
-            <p>Odpowiada za rysowanie pasków zdrowia, płynne przejścia cyklu dnia i nocy, ekwipunek, współrzędne w prawym górnym rogu oraz przyciemniony ekran śmierci (<code>drawDeathScreen</code>).</p>
+            <h3>Dynamiczny Rendering Ciał Niebieskich</h3>
+            <p>Wyświetla różnorodne warstwy teł. Renderuje wielokolorowe, pulsujące trajektorie upadku statków, niebo z wirującą Ziemią dla perspektywy z Księżyca oraz precyzyjne nakładki dla ekwipunku w <code>drawUI</code>.</p>
+        </div>
+    </section>
+    
+    <section id="config">
+        <h1 class="section-title">Frontend: config.js</h1>
+        <div class="card">
+            <h3>Stałe Interfejsu</h3>
+            <p>Globalny obiekt <code>ITEMS</code> określający czytelne nazwy oraz kody HEX kolorów wszystkich kilkunastu rodzajów materiałów oraz narzędzi dostępnych w grze.</p>
+        </div>
+    </section>
+
+    <section id="mechanics-dimensions">
+        <h1 class="section-title">Mechaniki: Wymiary i UFO</h1>
+        <div class="card">
+            <h3>Podział Światów</h3>
+            <p>Gra ładuje dwie izolowane mapy wielowarstwowe. Przejście do innego wymiaru zamyka się w dynamicznej fazie lotu o zmiennej wektorowej <code>flightTimer</code> i automatycznie narzuca właściwą siatkę chunków.</p>
+        </div>
+        <div class="card">
+            <h3>Event Upadku UFO</h3>
+            <p>Na Ziemi może dojść do proceduralnej kraksy okrętu międzygalaktycznego. Zdarzenie to wymusza wycięcie dziury w gruncie wokół uderzenia, generuje spersonalizowanych wrogów oraz blokuje wejście z zewnątrz aż do pacyfikacji kosmitów.</p>
+        </div>
+    </section>
+
+    <section id="mechanics-crafting">
+        <h1 class="section-title">Mechaniki: Ekwipunek i Crafting</h1>
+        <div class="card">
+            <h3>Zasoby</h3>
+            <p>Usunięcie z mapy elementu poprawnie zarejestrowanego przez <code>inventory</code> inkrementuje stan gracza. Posiadanie odpowiednich ilości jest konieczne do budowania z powrotem lub tworzenia obiektów zaawansowanych.</p>
+        </div>
+        <div class="card">
+            <h3>Przepisy (Recipes)</h3>
+            <p>Panel E pozwala odczytać serwerowe kombinacje rzemieślnicze. W ten sposób powstają deski z drewna czy zoptymalizowane do odpoczynku i resetowania pory dnia łóżka (<code>tile 16</code>).</p>
         </div>
     </section>
 
     <section id="mechanics-combat">
-        <h1 class="section-title">Mechaniki: Walka i HP</h1>
+        <h1 class="section-title">Mechaniki: Walka i Raycasting</h1>
         <div class="card">
-            <h3>Obrażenia od Upadku</h3>
-            <p>Jeśli gracz spadnie z wysokości większej niż 6 kratek, przy uderzeniu o ziemię otrzyma obrażenia proporcjonalne do przebytego dystansu.</p>
-        </div>
-        <div class="card">
-            <h3>Regeneracja</h3>
-            <p>Zdrowie odnawia się automatycznie, pod warunkiem, że postać nie otrzymała żadnych obrażeń w ciągu ostatnich 5 sekund (300 klatek w <code>regenCooldown</code>).</p>
-        </div>
-        <div class="card">
-            <h3>PvP</h3>
-            <p>Użycie dzidy laserowej iteruje przez tablicę innych graczy, zadając 25 punktów obrażeń przy bezpośrednim trafieniu w hitbox.</p>
+            <h3>PvP i Obrażenia</h3>
+            <p>Laser to broń natychmiastowa typu hitscan z limitem penetracji bloków. Jeśli promień napotka pełną i masywną teksturę (nie wodę ani drzwi), odrzuci sygnał strzału osłaniając docelowy obiekt i niwelując wymianę ognia przez lity kamień.</p>
         </div>
     </section>
 
     <section id="mechanics-mobs">
-        <h1 class="section-title">Mechaniki: Moby</h1>
+        <h1 class="section-title">Mechaniki: Moby i AI</h1>
         <div class="card">
-            <h3>Krowy</h3>
-            <p>Pasywne zwierzęta pojawiające się za dnia. Poruszają się powoli i losowo. Ich zabicie nie daje jeszcze przedmiotów, ale testuje logikę trafień.</p>
+            <h3>Zwierzęta</h3>
+            <p>Krowy, świnie oraz owce zachowujące wolne tempo ruchu. Respią się pod oświetlonym niebem.</p>
         </div>
         <div class="card">
-            <h3>Zombie</h3>
-            <p>Agresywni przeciwnicy pojawiający się tylko w nocy. Posiadają sztuczną inteligencję (algorytm poszukujący gracza na podstawie odległości w zmiennej <code>minDistance</code>). Kiedy nastaje dzień, Zombie zaczynają płonąć i otrzymują stałe obrażenia aż do śmierci.</p>
+            <h3>Wrogowie</h3>
+            <p>Wrogie entity to <code>zombie</code> (palące się za dnia) oraz stacjonujący na obcym wymiarze <code>alien</code> i <code>crawler</code>. Wyposażone w mechanizmy sprawdzania najbliższego celu gracza i oddawania autonomicznych dystansowych wystrzałów po uzyskaniu widoczności i zresetowaniu własnego odliczania obronnego.</p>
+        </div>
+    </section>
+
+    <section id="mechanics-water">
+        <h1 class="section-title">Mechaniki: Fizyka Wody</h1>
+        <div class="card">
+            <h3>Cellular Automata</h3>
+            <p>Woda symuluje grawitację bez zatrzymywania stabilności klienta. Algorytm w zdefiniowanym zasięgu weryfikuje bloki komórki opadając w dół lub namnażając element obok, gdy dno zatrzyma proces pionowy.</p>
         </div>
     </section>
 </main>

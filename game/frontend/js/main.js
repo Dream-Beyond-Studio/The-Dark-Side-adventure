@@ -1,4 +1,4 @@
-import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, SERVER_DEV } from './config.js'; 
+import { TILE_SIZE, MAP_HEIGHT, BUILD_RANGE, ITEM_LASER, ITEMS, SERVER_DEV } from './config.js'; 
 import { drawWorld, drawUI, drawMobs, drawLasers, drawNightOverlay, drawPlayer, drawDamageTexts, drawDeathScreen, drawFlightAnimation, drawFallingUfos } from './render.js'; 
 import { getTile, setTile, initWorldData, updateChunk, setDimension, currentDimension, dimensions } from './world.js';
 
@@ -35,16 +35,10 @@ let dayDuration = 3600;
 let isWormholeActive = false;
 let lastKeysJSON = ""; 
 
-const hotbar = [
-    { id: 2, name: "Ziemia", color: '#5C4033' },
-    { id: 1, name: "Trawa", color: '#32CD32' },
-    { id: 5, name: "Kamień", color: '#808080' },
-    { id: 3, name: "Drewno", color: '#8B4513' },
-    { id: 10, name: "Deski", color: '#DEB887' },
-    { id: ITEM_LASER, name: "Dzida Laserowa", color: '#FF0000' },
-    { id: 11, name: "Cegły", color: '#B22222' },
-    { id: 12, name: "Woda", color: '#4169E1' }
-];
+const hotbarIds = [999, 1, 2, 3, 4, 5, 10, 11, 16, 9];
+let inventory = {};
+let recipes = [];
+let isCraftingOpen = false;
 
 let selectedSlot = 0;
 let mouseGridX = 0, mouseGridY = 0, screenMouseX = 0, screenMouseY = 0; 
@@ -66,14 +60,12 @@ document.querySelectorAll('.classBtn').forEach(btn => {
 });
 
 playBtn.addEventListener('click', initGame);
-nickInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') initGame();
-});
-serverInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') initGame();
-});
+nickInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') initGame(); });
+serverInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') initGame(); });
 
 function initGame() {
+    if (socket) return;
+    
     const nickVal = nickInput.value.trim();
     if (nickVal) playerNick = nickVal.substring(0, 15);
 
@@ -89,6 +81,8 @@ function initGame() {
     socket.on('initWorld', (data) => {
         initWorldData(data.chunks, data.worldChanges);
         dayDuration = data.dayDuration;
+        recipes = data.recipes;
+        updateCraftingUI();
     });
 
     socket.on('dimensionChange', (data) => {
@@ -98,6 +92,13 @@ function initGame() {
     socket.on('initDimension', (data) => {
         dimensions[data.dimension].chunks = data.chunks;
         dimensions[data.dimension].worldChanges = data.worldChanges;
+        recipes = data.recipes;
+        updateCraftingUI();
+    });
+
+    socket.on('inventoryUpdate', (inv) => {
+        inventory = inv;
+        updateCraftingUI();
     });
 
     socket.on('newChunk', (data) => updateChunk(data.chunkX, data.data, data.dimension));
@@ -151,6 +152,59 @@ function initGame() {
     loop();
 }
 
+function updateCraftingUI() {
+    const list = document.getElementById('recipeList');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    recipes.forEach(r => {
+        const itemConfig = ITEMS[r.id];
+        const div = document.createElement('div');
+        div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: #111; padding: 10px; margin: 10px 0; border: 2px solid #444;';
+        
+        let reqText = r.req.map(reqItem => `${ITEMS[reqItem.id].name} x${reqItem.count}`).join(', ');
+        
+        let canCraft = true;
+        r.req.forEach(reqItem => {
+            if ((inventory[reqItem.id] || 0) < reqItem.count) canCraft = false;
+        });
+        
+        div.innerHTML = `
+            <div style="text-align: left;">
+                <strong>${itemConfig.name} x${r.count}</strong><br>
+                <span style="font-size:12px; color:#aaa;">Wymaga: ${reqText}</span>
+            </div>
+            <button style="background: ${canCraft ? '#32CD32' : '#555'}; color: ${canCraft ? 'white' : '#888'}; border: none; padding: 8px 15px; font-weight: bold; cursor: ${canCraft ? 'pointer' : 'not-allowed'};" ${canCraft ? '' : 'disabled'}>CRAFT</button>
+        `;
+        
+        div.querySelector('button').addEventListener('click', () => {
+            if(canCraft) socket.emit('craft', r.id);
+        });
+        list.appendChild(div);
+    });
+}
+
+function hasLineOfSight(x1, y1, x2, y2) {
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    const steps = Math.ceil(dist / (TILE_SIZE / 2));
+    
+    for (let i = 0; i <= steps; i++) {
+        const currentX = x1 + (x2 - x1) * (i / steps);
+        const currentY = y1 + (y2 - y1) * (i / steps);
+        const gridX = Math.floor(currentX / TILE_SIZE);
+        const gridY = Math.floor(currentY / TILE_SIZE);
+        
+        if (gridX === Math.floor(x2 / TILE_SIZE) && gridY === Math.floor(y2 / TILE_SIZE)) continue;
+        if (gridX === Math.floor(x1 / TILE_SIZE) && gridY === Math.floor(y1 / TILE_SIZE)) continue;
+        
+        const tile = getTile(gridX, gridY);
+        if (tile !== 0 && tile !== 3 && tile !== 4 && tile !== 12 && tile !== 14 && tile !== 15 && tile !== 16 && tile !== 99) {
+            return false;
+        }
+    }
+    return true;
+}
+
 chatInput.addEventListener('focus', () => isChatting = true);
 chatInput.addEventListener('blur', () => {
     isChatting = false;
@@ -171,12 +225,19 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !isChatting && socket) { chatInput.focus(); e.preventDefault(); return; }
     if (isChatting || !socket) return; 
     
+    if (e.code === 'KeyE') {
+        isCraftingOpen = !isCraftingOpen;
+        document.getElementById('craftingOverlay').style.display = isCraftingOpen ? 'flex' : 'none';
+        return;
+    }
+
     if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
     if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
     if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.jump = true;
     
-    const keyNum = parseInt(e.key);
-    if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= hotbar.length) selectedSlot = keyNum - 1;
+    let keyNum = parseInt(e.key);
+    if (keyNum === 0) keyNum = 10;
+    if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= hotbarIds.length) selectedSlot = keyNum - 1;
 });
 
 window.addEventListener('keyup', e => {
@@ -189,7 +250,7 @@ window.addEventListener('keyup', e => {
 canvas.addEventListener('mousemove', e => { screenMouseX = e.clientX; screenMouseY = e.clientY; });
 
 canvas.addEventListener('mousedown', e => {
-    if (isChatting || !socket) return;
+    if (isChatting || !socket || isCraftingOpen) return;
 
     const myPlayer = localPlayers[socket.id];
     if (!myPlayer) return;
@@ -209,7 +270,7 @@ canvas.addEventListener('mousedown', e => {
     if (myPlayer.isFlying) return;
 
     const targetTileObj = getTile(mouseGridX, mouseGridY);
-    if (e.button === 2 && (targetTileObj === 14 || targetTileObj === 15)) {
+    if (e.button === 2 && (targetTileObj === 14 || targetTileObj === 15 || targetTileObj === 16)) {
         const dist = Math.sqrt(((mouseGridX*TILE_SIZE+16)-(myPlayer.x+10))**2 + ((mouseGridY*TILE_SIZE+16)-(myPlayer.y+20))**2);
         if (dist <= BUILD_RANGE * TILE_SIZE) {
             socket.emit('interact', { x: mouseGridX, y: mouseGridY });
@@ -217,23 +278,26 @@ canvas.addEventListener('mousedown', e => {
         }
     }
 
-    const targetItem = hotbar[selectedSlot].id;
+    const targetItem = hotbarIds[selectedSlot];
 
     if (targetItem === ITEM_LASER) {
-        if (e.button === 0) {
+        if (e.button === 0 && (inventory[ITEM_LASER] > 0)) {
+            const pCenterX = myPlayer.x + myPlayer.width / 2;
+            const pCenterY = myPlayer.y + myPlayer.height / 2;
             const targetX = screenMouseX + camera.x;
             const targetY = screenMouseY + camera.y;
             
-            socket.emit('shoot', { x: targetX, y: targetY });
-            
-            lasers.push({
-                x1: myPlayer.x + myPlayer.width / 2,
-                y1: myPlayer.y + myPlayer.height / 2,
-                x2: targetX,
-                y2: targetY,
-                life: 10,
-                color: '#FF0000'
-            });
+            if (hasLineOfSight(pCenterX, pCenterY, targetX, targetY)) {
+                socket.emit('shoot', { x: targetX, y: targetY });
+                lasers.push({
+                    x1: pCenterX,
+                    y1: pCenterY,
+                    x2: targetX,
+                    y2: targetY,
+                    life: 10,
+                    color: '#FF0000'
+                });
+            }
         }
         return;
     }
@@ -244,10 +308,12 @@ canvas.addEventListener('mousedown', e => {
     const type = (e.button === 0) ? 0 : targetItem;
 
     if (e.button === 0 && !canMineHere) return; 
-    if (e.button === 2 && !canBuildHere) return; 
+    if (e.button === 2) {
+        if (!canBuildHere) return; 
+        if ((inventory[targetItem] || 0) <= 0) return;
+    }
 
     socket.emit('blockUpdate', { x: mouseGridX, y: mouseGridY, type: type });
-    setTile(mouseGridX, mouseGridY, type, currentDimension); 
 });
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -257,9 +323,9 @@ function updateMouseWorldPosition() {
     mouseGridY = Math.floor((screenMouseY + camera.y) / TILE_SIZE);
     
     const targetTile = getTile(mouseGridX, mouseGridY);
-    const isReplaceable = (targetTile === 0 || targetTile === 4 || targetTile === 12); 
+    canMineHere = targetTile !== 0 && targetTile !== 12 && targetTile !== 99 && targetTile !== 14 && targetTile !== 15;
 
-    canMineHere = !isReplaceable && targetTile !== 99 && targetTile !== 14 && targetTile !== 15;
+    const isReplaceable = (targetTile === 0 || targetTile === 4 || targetTile === 12); 
     if (!isReplaceable) { canBuildHere = false; return; }
 
     function isSupport(t) { return t !== 0 && t !== 12 && t !== 4; }
@@ -269,6 +335,19 @@ function updateMouseWorldPosition() {
     const right = getTile(mouseGridX + 1, mouseGridY);
 
     canBuildHere = isSupport(top) || isSupport(bottom) || isSupport(left) || isSupport(right);
+
+    const myPlayer = localPlayers[socket?.id];
+    if (myPlayer) {
+        const pCenterX = myPlayer.x + myPlayer.width / 2;
+        const pCenterY = myPlayer.y + myPlayer.height / 2;
+        const targetCenterX = mouseGridX * TILE_SIZE + TILE_SIZE / 2;
+        const targetCenterY = mouseGridY * TILE_SIZE + TILE_SIZE / 2;
+        
+        if (!hasLineOfSight(pCenterX, pCenterY, targetCenterX, targetCenterY)) {
+            canMineHere = false;
+            canBuildHere = false;
+        }
+    }
 }
 
 function loop() {
@@ -356,9 +435,7 @@ function loop() {
 
     drawWorld(ctx, camera, canvas.width, canvas.height, gameTime, dayDuration, isWormholeActive);
 
-    if (currentDimension === 'earth') {
-        drawFallingUfos(ctx, fallingUfos, camera);
-    }
+    if (currentDimension === 'earth') drawFallingUfos(ctx, fallingUfos, camera);
 
     let visibleMobs = {};
     for (let id in localMobs) {
@@ -381,8 +458,8 @@ function loop() {
         if (--lasers[i].life <= 0) lasers.splice(i, 1); 
     }
 
-    if (hotbar[selectedSlot].id !== ITEM_LASER) {
-        if (canBuildHere) ctx.strokeStyle = hotbar[selectedSlot].color;
+    if (hotbarIds[selectedSlot] !== ITEM_LASER) {
+        if (canBuildHere) ctx.strokeStyle = ITEMS[hotbarIds[selectedSlot]]?.color || '#FFF';
         else if (canMineHere) ctx.strokeStyle = "white"; 
         else ctx.strokeStyle = "red"; 
         
@@ -390,15 +467,10 @@ function loop() {
         ctx.strokeRect(mouseGridX * TILE_SIZE - camera.x, mouseGridY * TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
     }
     
-    drawUI(ctx, canvas.width, hotbar, selectedSlot, pX, pY);
+    drawUI(ctx, canvas.width, hotbarIds, inventory, selectedSlot, pX, pY);
 
-    if (myPlayer && myPlayer.isDead) {
-        drawDeathScreen(ctx, canvas.width, canvas.height);
-    }
-    
-    if (myPlayer && myPlayer.isFlying) {
-        drawFlightAnimation(ctx, canvas.width, canvas.height, myPlayer.flightTimer);
-    }
+    if (myPlayer && myPlayer.isDead) drawDeathScreen(ctx, canvas.width, canvas.height);
+    if (myPlayer && myPlayer.isFlying) drawFlightAnimation(ctx, canvas.width, canvas.height, myPlayer.flightTimer);
 
     requestAnimationFrame(loop);
 }

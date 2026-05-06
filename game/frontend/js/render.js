@@ -1,4 +1,4 @@
-import { TILE_SIZE } from './config.js';
+import { TILE_SIZE, ITEMS } from './config.js';
 import { getTile, currentDimension } from './world.js';
 
 const STARS_COUNT = 150;
@@ -231,6 +231,17 @@ export function drawWorld(ctx, camera, canvasWidth, canvasHeight, time, dayDurat
                     }
                     continue;
                 }
+                else if (tile === 16) {
+                    const bx = Math.floor(x * TILE_SIZE - camera.x);
+                    const by = Math.floor(y * TILE_SIZE - camera.y);
+                    ctx.fillStyle = '#8B4513';
+                    ctx.fillRect(bx, by + 20, TILE_SIZE, 12);
+                    ctx.fillStyle = '#DC143C';
+                    ctx.fillRect(bx, by + 12, TILE_SIZE, 8);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(bx + 20, by + 8, 12, 12);
+                    continue;
+                }
                 else if (tile >= 6 && tile <= 9) {
                     ctx.fillStyle = '#808080'; 
                     ctx.fillRect(Math.floor(x * TILE_SIZE - camera.x), Math.floor(y * TILE_SIZE - camera.y), TILE_SIZE, TILE_SIZE);
@@ -341,28 +352,67 @@ export function drawNightOverlay(ctx, canvasWidth, canvasHeight, time, dayDurati
     }
 }
 
-export function drawUI(ctx, canvasWidth, hotbar, selectedSlot, playerX, playerY) {
+export function drawUI(ctx, canvasWidth, hotbarIds, inventory, selectedSlot, playerX, playerY) {
     const slotSize = 40;
     const padding = 10;
-    const startX = (canvasWidth - (hotbar.length * (slotSize + padding))) / 2;
+    const startX = (canvasWidth - (hotbarIds.length * (slotSize + padding))) / 2;
     const startY = 10; 
 
-    for (let i = 0; i < hotbar.length; i++) {
+    for (let i = 0; i < hotbarIds.length; i++) {
+        const id = hotbarIds[i];
+        const item = ITEMS[id] || { color: '#FFF', name: '?' };
+        const count = inventory[id] || 0;
+        const hasItem = count > 0;
+        
         const x = startX + i * (slotSize + padding);
         ctx.fillStyle = (i === selectedSlot) ? "rgba(255, 255, 0, 0.5)" : "rgba(0, 0, 0, 0.5)"; 
         ctx.fillRect(x, startY, slotSize, slotSize);
         ctx.strokeStyle = "white"; ctx.lineWidth = 2;
         ctx.strokeRect(x, startY, slotSize, slotSize);
 
-        const item = hotbar[i];
-        ctx.fillStyle = item.color;
-        const itemSize = 20;
-        ctx.fillRect(x + (slotSize - itemSize)/2, startY + (slotSize - itemSize)/2, itemSize, itemSize);
+        ctx.globalAlpha = hasItem ? 1.0 : 0.3;
+        
+        if (id === 999) {
+            ctx.beginPath();
+            ctx.moveTo(x + 5, startY + slotSize - 5);
+            ctx.lineTo(x + slotSize - 10, startY + 10);
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(x + slotSize - 10, startY + 10);
+            ctx.lineTo(x + slotSize - 5, startY + 5);
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        } else if (id === 16) {
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 4, startY + 24, 32, 8);
+            ctx.fillStyle = '#DC143C';
+            ctx.fillRect(x + 4, startY + 18, 32, 6);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x + 22, startY + 14, 14, 10);
+        } else {
+            const itemSize = 20;
+            ctx.fillStyle = item.color;
+            ctx.fillRect(x + (slotSize - itemSize)/2, startY + (slotSize - itemSize)/2, itemSize, itemSize);
+        }
+        
+        ctx.globalAlpha = 1.0;
         ctx.fillStyle = "white"; ctx.font = "10px Arial";
         ctx.fillText(i + 1, x + 2, startY + 10);
+
+        if (id !== 999 && hasItem) {
+            ctx.textAlign = "right";
+            ctx.fillText(count, x + slotSize - 2, startY + slotSize - 4);
+            ctx.textAlign = "start";
+        }
     }
+    
     ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.textAlign = "center";
-    ctx.fillText(hotbar[selectedSlot].name, canvasWidth / 2, startY + slotSize + 25);
+    const selectedId = hotbarIds[selectedSlot];
+    ctx.fillText(ITEMS[selectedId] ? ITEMS[selectedId].name : "", canvasWidth / 2, startY + slotSize + 25);
 
     if (playerX !== undefined && playerY !== undefined) {
         const gridX = Math.floor(playerX / TILE_SIZE);
